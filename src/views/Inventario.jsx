@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import ImageUploader from '../components/ImageUploader'
 import { useNavigate } from 'react-router-dom'
@@ -52,6 +52,37 @@ export default function Inventario() {
   )
 
   const categories = [...new Set(filtered.map((p) => p.category))].sort()
+  const isSearching = search.trim().length > 0
+
+  const collapsedKey = useMemo(() => `inventoryCollapsedCategories:${householdId || 'unknown'}`, [householdId])
+  const [collapsedCategories, setCollapsedCategories] = useState(() => {
+    try {
+      const raw = localStorage.getItem(collapsedKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      return new Set(Array.isArray(parsed) ? parsed : [])
+    } catch {
+      return new Set()
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(collapsedKey, JSON.stringify(Array.from(collapsedCategories)))
+    } catch {
+      // ignore
+    }
+  }, [collapsedCategories, collapsedKey])
+
+  useEffect(() => {
+    // Cuando cambias de hogar, recarga su estado de colapso
+    try {
+      const raw = localStorage.getItem(collapsedKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      setCollapsedCategories(new Set(Array.isArray(parsed) ? parsed : []))
+    } catch {
+      setCollapsedCategories(new Set())
+    }
+  }, [collapsedKey])
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -248,19 +279,46 @@ export default function Inventario() {
       <div className="space-y-5 md:space-y-6">
         {categories.map((category) => (
           <div key={category}>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 md:mb-3">
-              {category}
-            </h3>
-            <div className="space-y-2">
-              {filtered
-                .filter((p) => p.category === category)
-                .map((product) => {
-                  const unit = ALL_UNITS_MAP[product.displayUnit]
-                  return (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-5 md:py-4"
-                    >
+            {(() => {
+              const categoryProducts = filtered.filter((p) => p.category === category)
+              const isCollapsed = !isSearching && collapsedCategories.has(category)
+
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCollapsedCategories((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(category)) next.delete(category)
+                        else next.add(category)
+                        return next
+                      })
+                    }}
+                    className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg px-1 text-left md:mb-3"
+                  >
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        {category}
+                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                          {categoryProducts.length}
+                        </span>
+                      </h3>
+                    </div>
+                    <div className="shrink-0 text-slate-400">
+                      {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                    </div>
+                  </button>
+
+                  {!isCollapsed && (
+                    <div className="space-y-2">
+                      {categoryProducts.map((product) => {
+                        const unit = ALL_UNITS_MAP[product.displayUnit]
+                        return (
+                          <div
+                            key={product.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-5 md:py-4"
+                          >
                       <div className="flex min-w-0 items-center gap-3 md:gap-4">
                         {product.imageUrl ? (
                           <img
@@ -333,9 +391,13 @@ export default function Inventario() {
                         </button>
                       </div>
                     </div>
-                  )
-                })}
-            </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         ))}
 
