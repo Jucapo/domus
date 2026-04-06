@@ -16,12 +16,18 @@ export const PACKAGE_UNITS = [
   { id: 'roll', label: 'Rollo', abbreviation: 'rollo' },
   { id: 'pack', label: 'Paquete', abbreviation: 'paq' },
   { id: 'dozen', label: 'Docena', abbreviation: 'doc' },
+  { id: 'panal', label: 'Panal', abbreviation: 'panal' },
 ]
 
 export const ALL_UNITS = [...BASE_UNITS, ...PACKAGE_UNITS]
 
 const PACKAGE_IDS = new Set(PACKAGE_UNITS.map((u) => u.id))
 export const isPackageUnit = (unitId) => PACKAGE_IDS.has(unitId)
+
+/** Caja / paquete / panal: docena se modela como paquete con N unidades. */
+const ANCHOR_STOCK_PACKAGE_IDS = new Set(['box', 'pack', 'panal'])
+export const showsAnchorStockLink = (displayUnitId) =>
+  ANCHOR_STOCK_PACKAGE_IDS.has(displayUnitId)
 
 export const ALL_UNITS_MAP = Object.fromEntries(ALL_UNITS.map((u) => [u.id, u]))
 
@@ -49,6 +55,8 @@ export function packageContentRowLabel(displayUnitId) {
       return 'Contenido por bolsa'
     case 'dozen':
       return 'Unidades por docena'
+    case 'panal':
+      return 'Unidad(es) por panal'
     case 'roll':
       return 'Contenido por rollo'
     default: {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   ArrowLeft,
   Pencil,
@@ -21,10 +21,10 @@ import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import {
-  ALL_UNITS,
   BASE_UNITS,
   PACKAGE_UNITS,
   isPackageUnit,
+  showsAnchorStockLink,
   ALL_UNITS_MAP,
   packageContentRowLabel,
 } from '../data/units'
@@ -34,6 +34,20 @@ import {
   productUnitSummaryLine,
   PRODUCT_META_CHIP_CLASS,
 } from '../lib/productDisplay'
+
+/** Etiqueta en el select de medida del contenido del empaque */
+function contentUnitSelectLabel(u) {
+  return u.id === 'unit' ? 'unidad(es)' : u.label
+}
+
+/** Unidades que se guardan en linked_units_per_package: las de «Unidad(es) por …» arriba */
+function linkedUnitsPerPackageFromForm(form) {
+  if (!showsAnchorStockLink(form.displayUnit) || !form.linkedProductId) return null
+  if (form.contentUnit !== 'unit') return null
+  const n = parseFloat(String(form.contentAmount ?? '').replace(',', '.'))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+}
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -73,7 +87,6 @@ export default function GestionProductos() {
     imageUrl: '',
     notes: '',
     linkedProductId: '',
-    linkedUnitsPerPackage: '',
   })
 
   const [editingId, setEditingId] = useState(null)
@@ -87,7 +100,6 @@ export default function GestionProductos() {
     imageUrl: '',
     notes: '',
     linkedProductId: '',
-    linkedUnitsPerPackage: '',
   })
   const [search, setSearch] = useState('')
 
@@ -115,15 +127,6 @@ export default function GestionProductos() {
     'gestion-productos',
   )
 
-  /** Productos que pueden ser "base" de stock (no son empaques ya anclados a otro) */
-  const anchorCandidates = useMemo(
-    () =>
-      products
-        .filter((p) => !p.linkedProductId)
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [products],
-  )
-
   const startEdit = (product) => {
     setEditingId(product.id)
     setEditForm({
@@ -131,13 +134,16 @@ export default function GestionProductos() {
       categoryId: product.categoryId,
       displayUnit: product.displayUnit,
       brand: product.brand || '',
-      contentAmount: product.contentAmount || '',
+      contentAmount:
+        product.contentAmount != null && product.contentAmount !== ''
+          ? String(product.contentAmount)
+          : product.linkedUnitsPerPackage != null
+            ? String(product.linkedUnitsPerPackage)
+            : '',
       contentUnit: product.contentUnit || '',
       imageUrl: product.imageUrl || '',
       notes: product.notes || '',
       linkedProductId: product.linkedProductId || '',
-      linkedUnitsPerPackage:
-        product.linkedUnitsPerPackage != null ? String(product.linkedUnitsPerPackage) : '',
     })
   }
 
@@ -147,9 +153,8 @@ export default function GestionProductos() {
       setEditingId(null)
       return
     }
-    if (isPackageUnit(editForm.displayUnit) && editForm.linkedProductId) {
-      const n = parseFloat(String(editForm.linkedUnitsPerPackage).replace(',', '.'))
-      if (!Number.isFinite(n) || n <= 0) return
+    if (showsAnchorStockLink(editForm.displayUnit) && editForm.linkedProductId) {
+      if (linkedUnitsPerPackageFromForm(editForm) == null) return
     }
     updateProduct(productId, {
       name: trimmed,
@@ -161,13 +166,10 @@ export default function GestionProductos() {
       imageUrl: editForm.imageUrl.trim(),
       notes: editForm.notes.trim(),
       linkedProductId:
-        isPackageUnit(editForm.displayUnit) && editForm.linkedProductId
+        showsAnchorStockLink(editForm.displayUnit) && editForm.linkedProductId
           ? editForm.linkedProductId
           : null,
-      linkedUnitsPerPackage:
-        isPackageUnit(editForm.displayUnit) && editForm.linkedProductId
-          ? parseFloat(String(editForm.linkedUnitsPerPackage).replace(',', '.'))
-          : null,
+      linkedUnitsPerPackage: linkedUnitsPerPackageFromForm(editForm),
     })
     setEditingId(null)
   }
@@ -175,9 +177,8 @@ export default function GestionProductos() {
   const handleCreate = async () => {
     const trimmed = createForm.name.trim()
     if (!trimmed || !createForm.categoryId) return
-    if (isPackageUnit(createForm.displayUnit) && createForm.linkedProductId) {
-      const n = parseFloat(String(createForm.linkedUnitsPerPackage).replace(',', '.'))
-      if (!Number.isFinite(n) || n <= 0) return
+    if (showsAnchorStockLink(createForm.displayUnit) && createForm.linkedProductId) {
+      if (linkedUnitsPerPackageFromForm(createForm) == null) return
     }
     await addProduct({
       householdId,
@@ -191,13 +192,10 @@ export default function GestionProductos() {
       imageUrl: createForm.imageUrl.trim(),
       notes: createForm.notes.trim(),
       linkedProductId:
-        isPackageUnit(createForm.displayUnit) && createForm.linkedProductId
+        showsAnchorStockLink(createForm.displayUnit) && createForm.linkedProductId
           ? createForm.linkedProductId
           : null,
-      linkedUnitsPerPackage:
-        isPackageUnit(createForm.displayUnit) && createForm.linkedProductId
-          ? parseFloat(String(createForm.linkedUnitsPerPackage).replace(',', '.'))
-          : null,
+      linkedUnitsPerPackage: linkedUnitsPerPackageFromForm(createForm),
     })
     setCreateForm({
       name: '',
@@ -210,7 +208,6 @@ export default function GestionProductos() {
       imageUrl: '',
       notes: '',
       linkedProductId: '',
-      linkedUnitsPerPackage: '',
     })
     setShowCreateForm(false)
   }
@@ -257,7 +254,7 @@ export default function GestionProductos() {
             form={createForm}
             setForm={setCreateForm}
             categories={categories}
-            anchorCandidates={anchorCandidates}
+            products={products}
             onConfirm={handleCreate}
             onCancel={() => setShowCreateForm(false)}
             navigate={navigate}
@@ -308,7 +305,7 @@ export default function GestionProductos() {
                       form={editForm}
                       setForm={setEditForm}
                       categories={categories}
-                      anchorCandidates={anchorCandidates}
+                      products={products}
                       onConfirm={() => confirmEdit(product.id)}
                       onCancel={() => setEditingId(null)}
                       navigate={navigate}
@@ -402,9 +399,11 @@ function ProductCard({
                 )}
               </span>
             </p>
-            {linkedProductName && product.linkedUnitsPerPackage > 0 && (
+            {linkedProductName && (
               <p className="mt-0.5 text-[10px] text-indigo-600">
-                Compras: +{product.linkedUnitsPerPackage} en «{linkedProductName}» por cada{' '}
+                Compras: +
+                {product.linkedUnitsPerPackage ?? product.contentAmount ?? '…'}{' '}
+                en «{linkedProductName}» por cada{' '}
                 {unit?.abbreviation || 'ud'} registrada
               </p>
             )}
@@ -445,70 +444,167 @@ function ProductCard({
   )
 }
 
-function LinkedStockFields({ form, setForm, anchorCandidates, excludeProductId }) {
-  const candidates = excludeProductId
-    ? anchorCandidates.filter((c) => c.id !== excludeProductId)
-    : anchorCandidates
+function LinkedStockFields({ form, setForm, products, categoryId, excludeProductId }) {
+  const [query, setQuery] = useState('')
+  const [anchorEnabled, setAnchorEnabled] = useState(() => Boolean(form.linkedProductId))
+
+  useEffect(() => {
+    setQuery('')
+  }, [categoryId])
+
   const packLabel = ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'
-  const inputClass =
-    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none'
+
+  const pool = useMemo(() => {
+    return products.filter(
+      (p) =>
+        !p.linkedProductId &&
+        (!excludeProductId || p.id !== excludeProductId) &&
+        categoryId &&
+        p.categoryId === categoryId,
+    )
+  }, [products, excludeProductId, categoryId])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    let list = pool
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.brand && p.brand.toLowerCase().includes(q)),
+      )
+    }
+    return [...list].sort((a, b) => a.name.localeCompare(b.name))
+  }, [pool, query])
+
+  const linkNotInPool =
+    Boolean(form.linkedProductId) && !pool.some((p) => p.id === form.linkedProductId)
+  const selectedName = form.linkedProductId
+    ? products.find((p) => p.id === form.linkedProductId)?.name
+    : null
 
   return (
     <div className="mt-3 rounded-lg border border-indigo-100 bg-white/80 p-3">
-      <p className="text-xs font-medium text-slate-700">Inventario unificado (opcional)</p>
-      <p className="mt-1 text-[11px] leading-snug text-slate-500">
-        Elige el producto en el que quieres ver el stock (p. ej. arroz por libra). Al registrar una
-        compra de este {packLabel}, se sumará la cantidad indicada allí y no al stock de este
-        empaque.
-      </p>
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div>
-          <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-            Producto base
-          </label>
-          <select
-            value={form.linkedProductId}
-            onChange={(e) => {
-              const v = e.target.value
-              setForm({
-                ...form,
-                linkedProductId: v,
-                ...(v ? {} : { linkedUnitsPerPackage: '' }),
-              })
-            }}
-            className={inputClass}
-          >
-            <option value="">Ninguno — stock solo aquí</option>
-            {candidates.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-                {p.category ? ` (${p.category})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-        {form.linkedProductId ? (
-          <div>
-            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
-              Unidades del producto base por 1 {packLabel}
-            </label>
-            <input
-              type="number"
-              min="0.001"
-              step="any"
-              placeholder="Ej: 25"
-              value={form.linkedUnitsPerPackage}
-              onChange={(e) => setForm({ ...form, linkedUnitsPerPackage: e.target.value })}
-              className={inputClass}
-            />
+      <label className="flex cursor-pointer items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={anchorEnabled}
+          onChange={(e) => {
+            const on = e.target.checked
+            setAnchorEnabled(on)
+            if (!on) {
+              setForm({ ...form, linkedProductId: '' })
+              setQuery('')
+            }
+          }}
+          className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500/30"
+        />
+        <span>
+          <span className="text-sm font-medium text-slate-800">
+            Anclar el stock a otro producto individual
+          </span>
+          <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+            Elige el producto base (misma categoría). La cantidad de unidades por {packLabel} es la que
+            indicaste arriba en «{packageContentRowLabel(form.displayUnit)}».
+          </span>
+        </span>
+      </label>
+
+      {anchorEnabled && (
+        <div className="mt-3 border-t border-indigo-100/90 pt-3">
+          <p className="mb-2 text-[11px] text-slate-500">
+            Se listan solo productos de la <span className="font-medium text-slate-600">misma categoría</span>.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+                Producto base
+              </label>
+              {!categoryId ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] text-amber-900">
+                  Elige primero la <strong>categoría</strong> del producto arriba para poder anclar el stock.
+                </p>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search
+                      size={14}
+                      className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Buscar por nombre o marca…"
+                      className="w-full rounded-lg border border-slate-300 py-2 pr-3 pl-8 text-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none"
+                      autoComplete="off"
+                    />
+                  </div>
+                  {linkNotInPool && selectedName && (
+                    <p className="mt-1.5 text-[11px] text-amber-800">
+                      El anclaje actual apunta a «{selectedName}», que no está en esta categoría. Elige
+                      uno de la lista o ajusta la categoría.
+                    </p>
+                  )}
+                  <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, linkedProductId: '' })}
+                      className={`w-full border-b border-slate-100 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-50 ${
+                        !form.linkedProductId ? 'bg-indigo-50/80 font-medium text-indigo-900' : 'text-slate-700'
+                      }`}
+                    >
+                      Sin producto base seleccionado
+                    </button>
+                    {filtered.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setForm({ ...form, linkedProductId: p.id })}
+                        className={`w-full border-b border-slate-100 px-3 py-2 text-left text-sm last:border-b-0 hover:bg-slate-50 ${
+                          form.linkedProductId === p.id
+                            ? 'bg-indigo-50/90 font-medium text-indigo-900'
+                            : 'text-slate-800'
+                        }`}
+                      >
+                        <span>{p.name}</span>
+                        {p.brand ? (
+                          <span className="text-slate-500"> · {p.brand}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                  {pool.length === 0 && (
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      No hay otros productos en esta categoría disponibles como base (o todos ya están
+                      anclados a otro empaque).
+                    </p>
+                  )}
+                  {pool.length > 0 && filtered.length === 0 && query.trim() !== '' && (
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      Ningún nombre o marca coincide. Prueba otro término.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+            {form.linkedProductId ? (
+              <p className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-[11px] text-indigo-900">
+                Se sumará al producto base la cantidad de{' '}
+                <strong>
+                  {form.contentAmount || '…'} unidad(es)
+                </strong>{' '}
+                por cada {packLabel} (la misma cifra de arriba).
+              </p>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, onCancel, navigate }) {
+function CreateForm({ form, setForm, categories, products, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(false)
 
   const inputClass =
@@ -535,7 +631,11 @@ function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, on
               navigate('/gestion/categorias')
               return
             }
-            setForm({ ...form, categoryId: e.target.value })
+            setForm({
+              ...form,
+              categoryId: e.target.value,
+              linkedProductId: '',
+            })
           }}
           className={inputClass}
         >
@@ -562,13 +662,13 @@ function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, on
             onChange={(e) => {
               const val = e.target.value
               const stillPack = isPackageUnit(val)
+              const anchorOk = showsAnchorStockLink(val)
               setForm({
                 ...form,
                 displayUnit: val,
                 contentAmount: stillPack ? form.contentAmount : '',
                 contentUnit: stillPack ? form.contentUnit : '',
-                linkedProductId: stillPack ? form.linkedProductId : '',
-                linkedUnitsPerPackage: stillPack ? form.linkedUnitsPerPackage : '',
+                linkedProductId: stillPack && anchorOk ? form.linkedProductId : '',
               })
             }}
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
@@ -604,20 +704,34 @@ function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, on
           />
           <select
             value={form.contentUnit}
-            onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
+            onChange={(e) => {
+              const v = e.target.value
+              setForm({
+                ...form,
+                contentUnit: v,
+                ...(v !== 'unit' ? { linkedProductId: '' } : {}),
+              })
+            }}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           >
             <option value="">Seleccionar medida…</option>
             {BASE_UNITS.map((u) => (
-              <option key={u.id} value={u.id}>{u.label}</option>
+              <option key={u.id} value={u.id}>
+                {contentUnitSelectLabel(u)}
+              </option>
             ))}
           </select>
         </div>
-        <LinkedStockFields
-          form={form}
-          setForm={setForm}
-          anchorCandidates={anchorCandidates}
-        />
+        {showsAnchorStockLink(form.displayUnit) &&
+          (form.contentUnit === 'unit' || Boolean(form.linkedProductId)) && (
+          <LinkedStockFields
+            key={form.categoryId || '_'}
+            form={form}
+            setForm={setForm}
+            products={products}
+            categoryId={form.categoryId}
+          />
+        )}
         </>
       )}
 
@@ -664,7 +778,7 @@ function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, on
   )
 }
 
-function EditForm({ product, form, setForm, categories, anchorCandidates, onConfirm, onCancel, navigate }) {
+function EditForm({ product, form, setForm, categories, products, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(
     Boolean(form.brand || form.imageUrl || form.notes || form.linkedProductId),
   )
@@ -694,7 +808,11 @@ function EditForm({ product, form, setForm, categories, anchorCandidates, onConf
               navigate('/gestion/categorias')
               return
             }
-            setForm({ ...form, categoryId: e.target.value })
+            setForm({
+              ...form,
+              categoryId: e.target.value,
+              linkedProductId: '',
+            })
           }}
           className={inputClass}
         >
@@ -718,13 +836,13 @@ function EditForm({ product, form, setForm, categories, anchorCandidates, onConf
           onChange={(e) => {
             const val = e.target.value
             const stillPack = isPackageUnit(val)
+            const anchorOk = showsAnchorStockLink(val)
             setForm({
               ...form,
               displayUnit: val,
               contentAmount: stillPack ? form.contentAmount : '',
               contentUnit: stillPack ? form.contentUnit : '',
-              linkedProductId: stillPack ? form.linkedProductId : '',
-              linkedUnitsPerPackage: stillPack ? form.linkedUnitsPerPackage : '',
+              linkedProductId: stillPack && anchorOk ? form.linkedProductId : '',
             })
           }}
           className={inputClass}
@@ -759,21 +877,35 @@ function EditForm({ product, form, setForm, categories, anchorCandidates, onConf
             />
             <select
               value={form.contentUnit}
-              onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
+              onChange={(e) => {
+                const v = e.target.value
+                setForm({
+                  ...form,
+                  contentUnit: v,
+                  ...(v !== 'unit' ? { linkedProductId: '' } : {}),
+                })
+              }}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
             >
               <option value="">Seleccionar medida…</option>
               {BASE_UNITS.map((u) => (
-                <option key={u.id} value={u.id}>{u.label}</option>
+                <option key={u.id} value={u.id}>
+                  {contentUnitSelectLabel(u)}
+                </option>
               ))}
             </select>
           </div>
-          <LinkedStockFields
-            form={form}
-            setForm={setForm}
-            anchorCandidates={anchorCandidates}
-            excludeProductId={product.id}
-          />
+          {showsAnchorStockLink(form.displayUnit) &&
+            (form.contentUnit === 'unit' || Boolean(form.linkedProductId)) && (
+            <LinkedStockFields
+              key={`${product.id}-${form.categoryId || '_'}`}
+              form={form}
+              setForm={setForm}
+              products={products}
+              categoryId={form.categoryId}
+              excludeProductId={product.id}
+            />
+          )}
         </>
       )}
 
