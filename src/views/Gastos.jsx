@@ -319,7 +319,7 @@ export default function Gastos() {
             No hay gastos en este periodo
           </p>
           <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
-            Cuando registres compras desde &ldquo;Por registrar&rdquo; en Precios, el resumen aparecerá aquí.
+            Cuando registres compras en &ldquo;Registrar compra&rdquo;, el resumen aparecerá aquí.
           </p>
         </div>
       )}

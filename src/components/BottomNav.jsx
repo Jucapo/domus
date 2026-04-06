@@ -47,7 +47,7 @@ export default function BottomNav() {
                   {shoppingCount}
                 </span>
               )}
-              {to === '/precios' && pendingCount > 0 && (
+              {to === '/registrar-compra' && pendingCount > 0 && (
                 <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-500 px-1 text-[10px] font-bold text-white">
                   {pendingCount}
                 </span>

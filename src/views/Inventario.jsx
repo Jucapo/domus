@@ -8,7 +8,6 @@ import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import {
-  ALL_UNITS,
   BASE_UNITS,
   PACKAGE_UNITS,
   isPackageUnit,
@@ -21,6 +20,101 @@ import {
   PRODUCT_META_CHIP_CLASS,
 } from '../lib/productDisplay'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
+
+/** Hay stock si la cantidad es mayor que cero (cualquier unidad de medida). */
+function productHasStock(product) {
+  const q = Number(product.quantity)
+  return Number.isFinite(q) && q > 0
+}
+
+function InventoryProductRow({
+  product,
+  productAccent,
+  onDecrement,
+  onIncrement,
+  onToggleShopping,
+}) {
+  const unit = ALL_UNITS_MAP[product.displayUnit]
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4 ${productAccent}`}
+    >
+      <div className="flex min-w-0 items-center gap-3 md:gap-4">
+        {product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            className="h-10 w-10 shrink-0 rounded-lg object-cover"
+          />
+        ) : (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+            <Package size={18} className="text-slate-400" />
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
+              {product.name}
+            </span>
+            {buildProductMetaChips(product).map((chip) => (
+              <span key={`${product.id}:${chip.key}`} className={PRODUCT_META_CHIP_CLASS}>
+                {chip.label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+              {productUnitSummaryLine(product)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto md:gap-3">
+        <button
+          type="button"
+          onClick={() => onDecrement(product.id)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+        >
+          <Minus size={14} />
+        </button>
+        <span
+          className={`min-w-[2.5rem] text-center text-sm font-semibold ${
+            product.quantity === 0 ? 'text-red-500' : 'text-slate-900'
+          }`}
+        >
+          {product.quantity}
+          {unit && (
+            <span className="ml-0.5 text-xs font-normal text-slate-400">{unit.abbreviation}</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => onIncrement(product.id)}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onToggleShopping(product.id)}
+          title={
+            product.inShoppingList
+              ? 'Quitar de la lista de compras'
+              : 'Agregar a la lista de compras'
+          }
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+            product.inShoppingList
+              ? 'border-amber-300 bg-amber-50 text-amber-600'
+              : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
+          }`}
+        >
+          <ShoppingCart size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function Inventario() {
   const navigate = useNavigate()
@@ -65,6 +159,7 @@ export default function Inventario() {
     contentUnit: '',
     imageUrl: '',
     notes: '',
+    barcode: '',
   })
   const [showOptional, setShowOptional] = useState(false)
 
@@ -99,8 +194,20 @@ export default function Inventario() {
       householdId,
       contentAmount: newProduct.contentAmount ? parseFloat(newProduct.contentAmount) : null,
       contentUnit: newProduct.contentUnit || null,
+      barcode: newProduct.barcode.trim(),
     })
-    setNewProduct({ name: '', categoryId: '', quantity: 1, displayUnit: 'unit', brand: '', contentAmount: '', contentUnit: '', imageUrl: '', notes: '' })
+    setNewProduct({
+      name: '',
+      categoryId: '',
+      quantity: 1,
+      displayUnit: 'unit',
+      brand: '',
+      contentAmount: '',
+      contentUnit: '',
+      imageUrl: '',
+      notes: '',
+      barcode: '',
+    })
     setShowOptional(false)
     setShowForm(false)
   }
@@ -240,7 +347,7 @@ export default function Inventario() {
             className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
           >
             {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+            {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, código de barras, foto...)'}
           </button>
 
           {showOptional && (
@@ -250,6 +357,15 @@ export default function Inventario() {
                 placeholder="Marca"
                 value={newProduct.brand}
                 onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Código de barras (opcional)"
+                value={newProduct.barcode}
+                onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
                 className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               />
               <div>
@@ -287,9 +403,11 @@ export default function Inventario() {
 
       <div className="space-y-5 md:space-y-6">
         {categories.map((category) => {
-          const categoryProducts = filtered
+          const sorted = filtered
             .filter((p) => p.category === category)
             .sort((a, b) => a.name.localeCompare(b.name))
+          const inStock = sorted.filter(productHasStock)
+          const outOfStock = sorted.filter((p) => !productHasStock(p))
           const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
           const productAccent =
             CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
@@ -298,98 +416,44 @@ export default function Inventario() {
             <CategorySection
               key={category}
               categoryName={category}
-              productCount={categoryProducts.length}
+              productCount={sorted.length}
               meta={meta}
               isCollapsed={isCategoryCollapsed(category)}
               onToggle={() => toggleCategory(category)}
             >
-              {categoryProducts.map((product) => {
-                const unit = ALL_UNITS_MAP[product.displayUnit]
-                return (
-                  <div
-                    key={product.id}
-                    className={`flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4 ${productAccent}`}
-                  >
-                            <div className="flex min-w-0 items-center gap-3 md:gap-4">
-                              {product.imageUrl ? (
-                                <img
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                                  <Package size={18} className="text-slate-400" />
-                                </div>
-                              )}
-                              <div className="min-w-0">
-                                <div className="flex min-w-0 flex-wrap items-center gap-1">
-                                  <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
-                                    {product.name}
-                                  </span>
-                                  {buildProductMetaChips(product).map((chip) => (
-                                    <span
-                                      key={`${product.id}:${chip.key}`}
-                                      className={PRODUCT_META_CHIP_CLASS}
-                                    >
-                                      {chip.label}
-                                    </span>
-                                  ))}
-                                </div>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                                    {productUnitSummaryLine(product)}
-                                  </span>
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto md:gap-3">
-                              <button
-                                onClick={() => decrement(product.id)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
-                              >
-                                <Minus size={14} />
-                              </button>
-                              <span
-                                className={`min-w-[2.5rem] text-center text-sm font-semibold ${
-                                  product.quantity === 0
-                                    ? 'text-red-500'
-                                    : 'text-slate-900'
-                                }`}
-                              >
-                                {product.quantity}
-                                {unit && (
-                                  <span className="ml-0.5 text-xs font-normal text-slate-400">
-                                    {unit.abbreviation}
-                                  </span>
-                                )}
-                              </span>
-                              <button
-                                onClick={() => increment(product.id)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
-                              >
-                                <Plus size={14} />
-                              </button>
-                              <button
-                                onClick={() => toggleShoppingList(product.id)}
-                                title={
-                                  product.inShoppingList
-                                    ? 'Quitar de la lista de compras'
-                                    : 'Agregar a la lista de compras'
-                                }
-                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                                  product.inShoppingList
-                                    ? 'border-amber-300 bg-amber-50 text-amber-600'
-                                    : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
-                                }`}
-                              >
-                                <ShoppingCart size={14} />
-                              </button>
-                            </div>
-                          </div>
-                )
-              })}
+              {inStock.map((product) => (
+                <InventoryProductRow
+                  key={product.id}
+                  product={product}
+                  productAccent={productAccent}
+                  onDecrement={decrement}
+                  onIncrement={increment}
+                  onToggleShopping={toggleShoppingList}
+                />
+              ))}
+              {inStock.length > 0 && outOfStock.length > 0 && (
+                <div
+                  className="flex items-center gap-3 py-1"
+                  role="separator"
+                  aria-label="Productos sin existencias"
+                >
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="shrink-0 text-[11px] font-medium tracking-wide text-slate-400 uppercase">
+                    Sin existencias
+                  </span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              )}
+              {outOfStock.map((product) => (
+                <InventoryProductRow
+                  key={product.id}
+                  product={product}
+                  productAccent={productAccent}
+                  onDecrement={decrement}
+                  onIncrement={increment}
+                  onToggleShopping={toggleShoppingList}
+                />
+              ))}
             </CategorySection>
           )
         })}

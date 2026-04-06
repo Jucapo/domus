@@ -46,6 +46,7 @@ create table public.products (
   notes text not null default '',
   linked_product_id uuid references public.products(id) on delete set null,
   linked_units_per_package numeric(12,4),
+  barcode text,
   created_at timestamptz not null default now()
 );
 

@@ -86,6 +86,7 @@ export default function GestionProductos() {
     contentUnit: '',
     imageUrl: '',
     notes: '',
+    barcode: '',
     linkedProductId: '',
   })
 
@@ -99,6 +100,7 @@ export default function GestionProductos() {
     contentUnit: '',
     imageUrl: '',
     notes: '',
+    barcode: '',
     linkedProductId: '',
   })
   const [search, setSearch] = useState('')
@@ -107,7 +109,8 @@ export default function GestionProductos() {
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase()) ||
-      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase())),
+      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase())) ||
+      (p.barcode && p.barcode.toLowerCase().includes(search.toLowerCase())),
   )
 
   const categoryNames = useMemo(() => {
@@ -143,6 +146,7 @@ export default function GestionProductos() {
       contentUnit: product.contentUnit || '',
       imageUrl: product.imageUrl || '',
       notes: product.notes || '',
+      barcode: product.barcode || '',
       linkedProductId: product.linkedProductId || '',
     })
   }
@@ -165,6 +169,7 @@ export default function GestionProductos() {
       contentUnit: editForm.contentUnit || null,
       imageUrl: editForm.imageUrl.trim(),
       notes: editForm.notes.trim(),
+      barcode: editForm.barcode.trim(),
       linkedProductId:
         showsAnchorStockLink(editForm.displayUnit) && editForm.linkedProductId
           ? editForm.linkedProductId
@@ -191,6 +196,7 @@ export default function GestionProductos() {
       contentUnit: createForm.contentUnit || null,
       imageUrl: createForm.imageUrl.trim(),
       notes: createForm.notes.trim(),
+      barcode: createForm.barcode.trim(),
       linkedProductId:
         showsAnchorStockLink(createForm.displayUnit) && createForm.linkedProductId
           ? createForm.linkedProductId
@@ -207,6 +213,7 @@ export default function GestionProductos() {
       contentUnit: '',
       imageUrl: '',
       notes: '',
+      barcode: '',
       linkedProductId: '',
     })
     setShowCreateForm(false)
@@ -269,7 +276,7 @@ export default function GestionProductos() {
         />
         <input
           type="text"
-          placeholder="Buscar por nombre, categoría o marca..."
+          placeholder="Buscar por nombre, categoría, marca o código de barras..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-9 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
@@ -741,7 +748,7 @@ function CreateForm({ form, setForm, categories, products, onConfirm, onCancel, 
         className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
       >
         {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, código de barras, foto...)'}
       </button>
 
       {showOptional && (
@@ -749,6 +756,20 @@ function CreateForm({ form, setForm, categories, products, onConfirm, onCancel, 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Marca</label>
             <input type="text" placeholder="Ej: Alquería, Diana..." value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Código de barras <span className="font-normal text-slate-400">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="EAN / UPC"
+              value={form.barcode}
+              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+              className={inputClass}
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Foto</label>
@@ -780,7 +801,7 @@ function CreateForm({ form, setForm, categories, products, onConfirm, onCancel, 
 
 function EditForm({ product, form, setForm, categories, products, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(
-    Boolean(form.brand || form.imageUrl || form.notes || form.linkedProductId),
+    Boolean(form.brand || form.imageUrl || form.notes || form.linkedProductId || form.barcode),
   )
 
   const inputClass =
@@ -915,7 +936,7 @@ function EditForm({ product, form, setForm, categories, products, onConfirm, onC
         className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
       >
         {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, código de barras, foto...)'}
       </button>
 
       {showOptional && (
@@ -929,6 +950,20 @@ function EditForm({ product, form, setForm, categories, products, onConfirm, onC
               placeholder="Ej: Alquería, Diana..."
               value={form.brand}
               onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Código de barras <span className="font-normal text-slate-400">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="EAN / UPC"
+              value={form.barcode}
+              onChange={(e) => setForm({ ...form, barcode: e.target.value })}
               className={inputClass}
             />
           </div>

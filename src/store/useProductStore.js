@@ -21,6 +21,10 @@ function mapRow(row) {
     linkedProductId: row.linked_product_id || null,
     linkedUnitsPerPackage:
       row.linked_units_per_package != null ? Number(row.linked_units_per_package) : null,
+    barcode:
+      row.barcode != null && String(row.barcode).trim() !== ''
+        ? String(row.barcode).trim()
+        : '',
   }
 }
 
@@ -59,6 +63,7 @@ export const useProductStore = create((set, get) => ({
         visible_in_inventory: product.visibleInInventory ?? true,
         linked_product_id: product.linkedProductId || null,
         linked_units_per_package: product.linkedUnitsPerPackage ?? null,
+        barcode: product.barcode?.trim() ? product.barcode.trim() : null,
       })
       .select('*, categories(name)')
       .single()
@@ -88,6 +93,9 @@ export const useProductStore = create((set, get) => ({
       dbUpdates.linked_units_per_package =
         updates.linkedUnitsPerPackage != null ? updates.linkedUnitsPerPackage : null
     }
+    if (updates.barcode !== undefined) {
+      dbUpdates.barcode = updates.barcode?.trim() ? updates.barcode.trim() : null
+    }
 
     const { data, error } = await supabase
       .from('products')
@@ -112,7 +120,7 @@ export const useProductStore = create((set, get) => ({
     return { error }
   },
 
-  /** Suma stock por una compra (Precios / flujo normal). Respeta anclaje a producto base. */
+  /** Suma stock por una compra (Registrar compra / flujo normal). Respeta anclaje a producto base. */
   addInventoryFromPurchase: async (productId, purchaseQty) => {
     const product = get().products.find((p) => p.id === productId)
     if (!product) return { error: null }

@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/useAuthStore'
 import Layout from './components/Layout'
 import Inventario from './views/Inventario'
 import PorComprar from './views/PorComprar'
-import Precios from './views/Precios'
+import RegistrarCompra from './views/RegistrarCompra'
+import HistoricoPrecios from './views/HistoricoPrecios'
 import Gastos from './views/Gastos'
 import GestionCategorias from './views/GestionCategorias'
 import GestionProductos from './views/GestionProductos'
@@ -36,7 +37,9 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Inventario />} />
           <Route path="por-comprar" element={<PorComprar />} />
-          <Route path="precios" element={<Precios />} />
+          <Route path="registrar-compra" element={<RegistrarCompra />} />
+          <Route path="historico-precios" element={<HistoricoPrecios />} />
+          <Route path="precios" element={<Navigate to="/historico-precios" replace />} />
           <Route path="gastos" element={<Gastos />} />
           <Route path="gestion/categorias" element={<GestionCategorias />} />
           <Route path="gestion/productos" element={<GestionProductos />} />

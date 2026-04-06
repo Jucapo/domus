@@ -7,6 +7,7 @@ export const PRODUCT_META_CHIP_CLASS =
 export function buildProductMetaChips(product) {
   const chips = []
   if (product.brand) chips.push({ key: 'brand', label: product.brand })
+  if (product.barcode) chips.push({ key: 'barcode', label: product.barcode })
   if (product.contentAmount && product.contentUnit) {
     const cu = ALL_UNITS_MAP[product.contentUnit]
     chips.push({
