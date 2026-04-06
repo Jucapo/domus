@@ -14,6 +14,7 @@ import {
   PackagePlus,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import ImageUploader from '../components/ImageUploader'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
@@ -418,8 +419,11 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
             <input type="text" placeholder="Ej: Alquería, Diana..." value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputClass} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">URL de foto</label>
-            <input type="url" placeholder="https://..." value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputClass} />
+            <label className="mb-1 block text-xs font-medium text-slate-500">Foto</label>
+            <ImageUploader
+              value={form.imageUrl}
+              onChange={(url) => setForm({ ...form, imageUrl: url })}
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Comentario</label>
@@ -567,14 +571,11 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">
-              URL de foto
+              Foto
             </label>
-            <input
-              type="url"
-              placeholder="https://..."
+            <ImageUploader
               value={form.imageUrl}
-              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-              className={inputClass}
+              onChange={(url) => setForm({ ...form, imageUrl: url })}
             />
           </div>
           <div>

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import ImageUploader from '../components/ImageUploader'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
@@ -211,13 +212,13 @@ export default function Inventario() {
                 onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
                 className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               />
-              <input
-                type="url"
-                placeholder="URL de foto"
-                value={newProduct.imageUrl}
-                onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
-                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-              />
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">Foto</label>
+                <ImageUploader
+                  value={newProduct.imageUrl}
+                  onChange={(url) => setNewProduct({ ...newProduct, imageUrl: url })}
+                />
+              </div>
               <input
                 type="text"
                 placeholder="Notas adicionales"
