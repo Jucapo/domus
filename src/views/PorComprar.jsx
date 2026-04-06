@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
-import { UNITS } from '../data/mock'
+import { UNITS } from '../data/units'
 
 const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
 

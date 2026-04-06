@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Tag, PackageSearch, LogOut } from 'lucide-react'
+import { Tag, PackageSearch, LogOut } from 'lucide-react'
 import { NAV_ITEMS } from './nav-items'
 import { useAuthStore, useCurrentHousehold } from '../store/useAuthStore'
 
@@ -10,9 +10,7 @@ export default function Sidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
-          <Home size={18} />
-        </div>
+        <img src="/logo.png" alt="Domus" className="h-9 w-9 object-contain" />
         <div>
           <h1 className="text-lg font-bold tracking-tight text-slate-900">
             Domus

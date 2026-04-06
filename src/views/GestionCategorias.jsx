@@ -7,13 +7,13 @@ import { useCategoryStore } from '../store/useCategoryStore'
 
 export default function GestionCategorias() {
   const navigate = useNavigate()
-  const householdId = useAuthStore((s) => s.user.currentHouseholdId)
+  const householdId = useAuthStore((s) => s.user?.currentHouseholdId)
+  const fetchProducts = useProductStore((s) => s.fetchProducts)
 
   const allCategories = useCategoryStore((s) => s.categories)
   const addCategory = useCategoryStore((s) => s.addCategory)
   const renameCategory = useCategoryStore((s) => s.renameCategory)
   const deleteCategory = useCategoryStore((s) => s.deleteCategory)
-  const updateCategoryName = useProductStore((s) => s.updateCategoryName)
 
   const categories = useMemo(
     () => allCategories.filter((c) => c.householdId === householdId),
@@ -66,7 +66,7 @@ export default function GestionCategorias() {
       return
     }
     renameCategory(cat.id, trimmed)
-    updateCategoryName(householdId, cat.name, trimmed)
+    if (householdId) fetchProducts(householdId)
     setEditingId(null)
   }
 

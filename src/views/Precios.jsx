@@ -15,7 +15,7 @@ import {
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
-import { UNITS } from '../data/mock'
+import { UNITS } from '../data/units'
 
 const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
 

@@ -1,13 +1,15 @@
 import { useState, useMemo } from 'react'
-import { Plus, Minus, Search, PackagePlus, ShoppingCart } from 'lucide-react'
+import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { UNITS } from '../data/mock'
+import { UNITS } from '../data/units'
 
 const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
 
 export default function Inventario() {
+  const navigate = useNavigate()
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
   const allProducts = useProductStore((s) => s.products)
   const increment = useProductStore((s) => s.increment)
@@ -25,7 +27,7 @@ export default function Inventario() {
   )
 
   const products = useMemo(
-    () => allProducts.filter((p) => p.householdId === householdId),
+    () => allProducts.filter((p) => p.householdId === householdId && p.visibleInInventory !== false),
     [allProducts, householdId],
   )
 
@@ -33,7 +35,7 @@ export default function Inventario() {
   const [showForm, setShowForm] = useState(false)
   const [newProduct, setNewProduct] = useState({
     name: '',
-    category: '',
+    categoryId: '',
     quantity: 1,
     unit: 'unit',
   })
@@ -48,9 +50,9 @@ export default function Inventario() {
 
   const handleAdd = (e) => {
     e.preventDefault()
-    if (!newProduct.name.trim() || !newProduct.category) return
+    if (!newProduct.name.trim() || !newProduct.categoryId) return
     addProduct({ ...newProduct, householdId })
-    setNewProduct({ name: '', category: '', quantity: 1, unit: 'unit' })
+    setNewProduct({ name: '', categoryId: '', quantity: 1, unit: 'unit' })
     setShowForm(false)
   }
 
@@ -91,20 +93,25 @@ export default function Inventario() {
               className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             />
             <select
-              value={newProduct.category}
-              onChange={(e) =>
-                setNewProduct({ ...newProduct, category: e.target.value })
-              }
+              value={newProduct.categoryId}
+              onChange={(e) => {
+                if (e.target.value === '__create__') {
+                  navigate('/gestion/categorias')
+                  return
+                }
+                setNewProduct({ ...newProduct, categoryId: e.target.value })
+              }}
               className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             >
               <option value="" disabled>
                 Categoría
               </option>
               {householdCategories.map((c) => (
-                <option key={c.id} value={c.name}>
+                <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
+              <option value="__create__">+ Crear categoría</option>
             </select>
             <div className="flex gap-2">
               <input
@@ -174,29 +181,35 @@ export default function Inventario() {
                       className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-5 md:py-4"
                     >
                       <div className="flex min-w-0 items-center gap-3 md:gap-4">
-                        <button
-                          onClick={() => toggleShoppingList(product.id)}
-                          title={
-                            product.inShoppingList
-                              ? 'Quitar de la lista de compras'
-                              : 'Agregar a la lista de compras'
-                          }
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                            product.inShoppingList
-                              ? 'border-amber-300 bg-amber-50 text-amber-600'
-                              : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
-                          }`}
-                        >
-                          <ShoppingCart size={14} />
-                        </button>
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                            <Package size={18} className="text-slate-400" />
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-slate-900 md:text-base">
                             {product.name}
+                            {product.brand && (
+                              <span className="ml-1 font-normal text-slate-400">
+                                · {product.brand}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-slate-500">
                             {unit && (
                               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
                                 {unit.label}
+                              </span>
+                            )}
+                            {product.packageSize && (
+                              <span className="ml-1.5 text-slate-400">
+                                {product.packageSize}
                               </span>
                             )}
                           </p>
@@ -228,6 +241,21 @@ export default function Inventario() {
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
                         >
                           <Plus size={14} />
+                        </button>
+                        <button
+                          onClick={() => toggleShoppingList(product.id)}
+                          title={
+                            product.inShoppingList
+                              ? 'Quitar de la lista de compras'
+                              : 'Agregar a la lista de compras'
+                          }
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                            product.inShoppingList
+                              ? 'border-amber-300 bg-amber-50 text-amber-600'
+                              : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
+                          }`}
+                        >
+                          <ShoppingCart size={14} />
                         </button>
                       </div>
                     </div>

@@ -6,12 +6,17 @@ import {
   Check,
   X,
   Search,
+  Image,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { UNITS } from '../data/mock'
+import { UNITS } from '../data/units'
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -35,23 +40,32 @@ export default function GestionProductos() {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({
     name: '',
-    category: '',
+    categoryId: '',
     unit: 'unit',
+    brand: '',
+    packageSize: '',
+    imageUrl: '',
+    notes: '',
   })
   const [search, setSearch] = useState('')
 
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase()),
+      p.category.toLowerCase().includes(search.toLowerCase()) ||
+      (p.brand && p.brand.toLowerCase().includes(search.toLowerCase())),
   )
 
   const startEdit = (product) => {
     setEditingId(product.id)
     setEditForm({
       name: product.name,
-      category: product.category,
+      categoryId: product.categoryId,
       unit: product.unit,
+      brand: product.brand || '',
+      packageSize: product.packageSize || '',
+      imageUrl: product.imageUrl || '',
+      notes: product.notes || '',
     })
   }
 
@@ -63,8 +77,12 @@ export default function GestionProductos() {
     }
     updateProduct(productId, {
       name: trimmed,
-      category: editForm.category,
+      categoryId: editForm.categoryId,
       unit: editForm.unit,
+      brand: editForm.brand.trim(),
+      packageSize: editForm.packageSize.trim(),
+      imageUrl: editForm.imageUrl.trim(),
+      notes: editForm.notes.trim(),
     })
     setEditingId(null)
   }
@@ -101,7 +119,7 @@ export default function GestionProductos() {
         />
         <input
           type="text"
-          placeholder="Buscar por nombre o categoría..."
+          placeholder="Buscar por nombre, categoría o marca..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-9 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
@@ -114,115 +132,29 @@ export default function GestionProductos() {
 
           if (isEditing) {
             return (
-              <div
+              <EditForm
                 key={product.id}
-                className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 md:p-4"
-              >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <input
-                    autoFocus
-                    type="text"
-                    value={editForm.name}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, name: e.target.value })
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') confirmEdit(product.id)
-                      if (e.key === 'Escape') setEditingId(null)
-                    }}
-                    placeholder="Nombre"
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                  />
-                  <select
-                    value={editForm.category}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, category: e.target.value })
-                    }
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                  >
-                    {categories
-                      .slice()
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((c) => (
-                        <option key={c.id} value={c.name}>
-                          {c.name}
-                        </option>
-                      ))}
-                    {!categories.some(
-                      (c) => c.name === editForm.category,
-                    ) && (
-                      <option value={editForm.category}>
-                        {editForm.category} (sin categoría)
-                      </option>
-                    )}
-                  </select>
-                  <select
-                    value={editForm.unit}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, unit: e.target.value })
-                    }
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                  >
-                    {UNITS.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-                  >
-                    <X size={14} />
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => confirmEdit(product.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-                  >
-                    <Check size={14} />
-                    Guardar
-                  </button>
-                </div>
-              </div>
+                product={product}
+                form={editForm}
+                setForm={setEditForm}
+                categories={categories}
+                onConfirm={() => confirmEdit(product.id)}
+                onCancel={() => setEditingId(null)}
+                navigate={navigate}
+              />
             )
           }
 
           return (
-            <div
+            <ProductCard
               key={product.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 md:px-4 md:py-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-slate-900">
-                  {product.name}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {product.category}
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  {UNITS.find((u) => u.id === product.unit)?.label ||
-                    product.unit}
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  Stock: {product.quantity}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => startEdit(product)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => handleDelete(product)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
+              product={product}
+              onEdit={() => startEdit(product)}
+              onDelete={() => handleDelete(product)}
+              onToggleVisibility={() =>
+                updateProduct(product.id, { visibleInInventory: product.visibleInInventory === false })
+              }
+            />
           )
         })}
 
@@ -231,6 +163,230 @@ export default function GestionProductos() {
             No se encontraron productos.
           </p>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
+  const unit = UNITS.find((u) => u.id === product.unit)
+  const hasExtras = product.brand || product.packageSize || product.notes
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm md:px-4 md:py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="h-10 w-10 shrink-0 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+              <Image size={16} className="text-slate-300" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-slate-900">
+              {product.name}
+              {product.brand && (
+                <span className="ml-1.5 font-normal text-slate-400">
+                  — {product.brand}
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-slate-500">
+              {product.category}
+              <span className="mx-1.5 text-slate-300">·</span>
+              {unit?.label || product.unit}
+              {product.packageSize && (
+                <>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  {product.packageSize}
+                </>
+              )}
+              <span className="mx-1.5 text-slate-300">·</span>
+              Stock: {product.quantity}
+            </p>
+            {product.notes && (
+              <p className="mt-0.5 truncate text-xs text-slate-400 italic">
+                {product.notes}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={onToggleVisibility}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+              product.visibleInInventory !== false
+                ? 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                : 'text-amber-500 hover:bg-amber-50'
+            }`}
+            title={product.visibleInInventory !== false ? 'Ocultar del inventario' : 'Mostrar en inventario'}
+          >
+            {product.visibleInInventory !== false ? <Eye size={14} /> : <EyeOff size={14} />}
+          </button>
+          <button
+            onClick={onEdit}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditForm({ product, form, setForm, categories, onConfirm, onCancel, navigate }) {
+  const [showOptional, setShowOptional] = useState(
+    Boolean(form.brand || form.packageSize || form.imageUrl || form.notes),
+  )
+
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none'
+
+  return (
+    <div className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 md:p-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <input
+          autoFocus
+          type="text"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onConfirm()
+            if (e.key === 'Escape') onCancel()
+          }}
+          placeholder="Nombre"
+          className={inputClass}
+        />
+        <select
+          value={form.categoryId}
+          onChange={(e) => {
+            if (e.target.value === '__create__') {
+              navigate('/gestion/categorias')
+              return
+            }
+            setForm({ ...form, categoryId: e.target.value })
+          }}
+          className={inputClass}
+        >
+          {categories
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          {!categories.some((c) => c.id === form.categoryId) && (
+            <option value={form.categoryId}>
+              {form.categoryId} (sin categoría)
+            </option>
+          )}
+          <option value="__create__">+ Crear categoría</option>
+        </select>
+        <select
+          value={form.unit}
+          onChange={(e) => setForm({ ...form, unit: e.target.value })}
+          className={inputClass}
+        >
+          {UNITS.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowOptional(!showOptional)}
+        className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+      >
+        {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+      </button>
+
+      {showOptional && (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Marca
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Alquería, Diana..."
+              value={form.brand}
+              onChange={(e) => setForm({ ...form, brand: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Cantidad por envase
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: 1.1L, 500g, 12 und..."
+              value={form.packageSize}
+              onChange={(e) =>
+                setForm({ ...form, packageSize: e.target.value })
+              }
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              URL de foto
+            </label>
+            <input
+              type="url"
+              placeholder="https://..."
+              value={form.imageUrl}
+              onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">
+              Comentario
+            </label>
+            <input
+              type="text"
+              placeholder="Notas adicionales..."
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+        >
+          <X size={14} />
+          Cancelar
+        </button>
+        <button
+          onClick={onConfirm}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          <Check size={14} />
+          Guardar
+        </button>
       </div>
     </div>
   )

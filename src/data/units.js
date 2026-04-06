@@ -1,0 +1,16 @@
+export const UNITS = [
+  { id: 'unit', label: 'Unidad', abbreviation: 'ud' },
+  { id: 'g', label: 'Gramos', abbreviation: 'g' },
+  { id: 'kg', label: 'Kilogramos', abbreviation: 'kg' },
+  { id: 'lb', label: 'Libras', abbreviation: 'lb' },
+  { id: 'ml', label: 'Mililitros', abbreviation: 'ml' },
+  { id: 'l', label: 'Litros', abbreviation: 'L' },
+  { id: 'bottle', label: 'Botella', abbreviation: 'bot' },
+  { id: 'jar', label: 'Tarro', abbreviation: 'tarro' },
+  { id: 'can', label: 'Lata', abbreviation: 'lata' },
+  { id: 'box', label: 'Caja', abbreviation: 'caja' },
+  { id: 'bag', label: 'Bolsa', abbreviation: 'bolsa' },
+  { id: 'roll', label: 'Rollo', abbreviation: 'rollo' },
+  { id: 'pack', label: 'Paquete', abbreviation: 'paq' },
+  { id: 'dozen', label: 'Docena', abbreviation: 'doc' },
+]
