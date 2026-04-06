@@ -1,19 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { Package, ShoppingCart, DollarSign, Home } from 'lucide-react'
+import { Home, Tag, PackageSearch, LogOut } from 'lucide-react'
+import { NAV_ITEMS } from './nav-items'
 import { useAuthStore, useCurrentHousehold } from '../store/useAuthStore'
-
-const NAV_ITEMS = [
-  { to: '/', label: 'Inventario', icon: Package },
-  { to: '/por-comprar', label: 'Por Comprar', icon: ShoppingCart },
-  { to: '/gastos', label: 'Gastos', icon: DollarSign },
-]
 
 export default function Sidebar() {
   const user = useAuthStore((s) => s.user)
   const currentHousehold = useCurrentHousehold()
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-slate-200 bg-white">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
       <div className="flex items-center gap-3 border-b border-slate-200 px-6 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white">
           <Home size={18} />
@@ -46,17 +41,55 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      <div className="border-t border-slate-200 px-3 py-3">
+        <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Gestión
+        </p>
+        <NavLink
+          to="/gestion/categorias"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`
+          }
+        >
+          <Tag size={16} />
+          Categorías
+        </NavLink>
+        <NavLink
+          to="/gestion/productos"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              isActive
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`
+          }
+        >
+          <PackageSearch size={16} />
+          Editar productos
+        </NavLink>
+      </div>
+
       <div className="border-t border-slate-200 px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-sm font-semibold text-violet-700">
             {user.name.charAt(0)}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-slate-900">
               {user.name}
             </p>
             <p className="truncate text-xs text-slate-500">{user.email}</p>
           </div>
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            title="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

@@ -1,7 +1,11 @@
 import { useState, useMemo } from 'react'
-import { Plus, Minus, Search, PackagePlus } from 'lucide-react'
+import { Plus, Minus, Search, PackagePlus, ShoppingCart } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
+import { useCategoryStore } from '../store/useCategoryStore'
+import { UNITS } from '../data/mock'
+
+const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
 
 export default function Inventario() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
@@ -9,6 +13,16 @@ export default function Inventario() {
   const increment = useProductStore((s) => s.increment)
   const decrement = useProductStore((s) => s.decrement)
   const addProduct = useProductStore((s) => s.addProduct)
+  const toggleShoppingList = useProductStore((s) => s.toggleShoppingList)
+
+  const allCategories = useCategoryStore((s) => s.categories)
+  const householdCategories = useMemo(
+    () =>
+      allCategories
+        .filter((c) => c.householdId === householdId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allCategories, householdId],
+  )
 
   const products = useMemo(
     () => allProducts.filter((p) => p.householdId === householdId),
@@ -21,6 +35,7 @@ export default function Inventario() {
     name: '',
     category: '',
     quantity: 1,
+    unit: 'unit',
   })
 
   const filtered = products.filter(
@@ -33,36 +48,39 @@ export default function Inventario() {
 
   const handleAdd = (e) => {
     e.preventDefault()
-    if (!newProduct.name.trim()) return
+    if (!newProduct.name.trim() || !newProduct.category) return
     addProduct({ ...newProduct, householdId })
-    setNewProduct({ name: '', category: '', quantity: 1 })
+    setNewProduct({ name: '', category: '', quantity: 1, unit: 'unit' })
     setShowForm(false)
   }
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between md:mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Inventario</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+            Inventario
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
             {products.length} productos en el hogar
           </p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700"
+          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 md:px-4 md:py-2.5"
         >
           <PackagePlus size={16} />
-          Agregar producto
+          <span className="hidden sm:inline">Agregar producto</span>
+          <span className="sm:hidden">Agregar</span>
         </button>
       </div>
 
       {showForm && (
         <form
           onSubmit={handleAdd}
-          className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+          className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:mb-6 md:p-5"
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 md:gap-4">
             <input
               type="text"
               placeholder="Nombre del producto"
@@ -70,17 +88,24 @@ export default function Inventario() {
               onChange={(e) =>
                 setNewProduct({ ...newProduct, name: e.target.value })
               }
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
             />
-            <input
-              type="text"
-              placeholder="Categoría"
+            <select
               value={newProduct.category}
               onChange={(e) =>
                 setNewProduct({ ...newProduct, category: e.target.value })
               }
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-            />
+              className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+            >
+              <option value="" disabled>
+                Categoría
+              </option>
+              {householdCategories.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-2">
               <input
                 type="number"
@@ -92,20 +117,33 @@ export default function Inventario() {
                     quantity: parseInt(e.target.value) || 0,
                   })
                 }
-                className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                className="w-20 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               />
-              <button
-                type="submit"
-                className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              <select
+                value={newProduct.unit}
+                onChange={(e) =>
+                  setNewProduct({ ...newProduct, unit: e.target.value })
+                }
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               >
-                Guardar
-              </button>
+                {UNITS.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
             </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Guardar
+            </button>
           </div>
         </form>
       )}
 
-      <div className="relative mb-6">
+      <div className="relative mb-4 md:mb-6">
         <Search
           size={16}
           className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
@@ -119,53 +157,82 @@ export default function Inventario() {
         />
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-5 md:space-y-6">
         {categories.map((category) => (
           <div key={category}>
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 md:mb-3">
               {category}
             </h3>
             <div className="space-y-2">
               {filtered
                 .filter((p) => p.category === category)
-                .map((product) => (
-                  <div
-                    key={product.id}
-                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {product.name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {product.category}
-                      </p>
+                .map((product) => {
+                  const unit = unitMap[product.unit]
+                  return (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-5 md:py-4"
+                    >
+                      <div className="flex min-w-0 items-center gap-3 md:gap-4">
+                        <button
+                          onClick={() => toggleShoppingList(product.id)}
+                          title={
+                            product.inShoppingList
+                              ? 'Quitar de la lista de compras'
+                              : 'Agregar a la lista de compras'
+                          }
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                            product.inShoppingList
+                              ? 'border-amber-300 bg-amber-50 text-amber-600'
+                              : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
+                          }`}
+                        >
+                          <ShoppingCart size={14} />
+                        </button>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900 md:text-base">
+                            {product.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {unit && (
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                                {unit.label}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2 md:gap-3">
+                        <button
+                          onClick={() => decrement(product.id)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span
+                          className={`min-w-[2.5rem] text-center text-sm font-semibold ${
+                            product.quantity === 0
+                              ? 'text-red-500'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          {product.quantity}
+                          {unit && (
+                            <span className="ml-0.5 text-xs font-normal text-slate-400">
+                              {unit.abbreviation}
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => increment(product.id)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => decrement(product.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span
-                        className={`min-w-[2rem] text-center text-sm font-semibold ${
-                          product.quantity === 0
-                            ? 'text-red-500'
-                            : 'text-slate-900'
-                        }`}
-                      >
-                        {product.quantity}
-                      </span>
-                      <button
-                        onClick={() => increment(product.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
             </div>
           </div>
         ))}
