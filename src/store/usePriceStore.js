@@ -7,6 +7,7 @@ function mapRow(row) {
     productId: row.product_id,
     householdId: row.household_id,
     price: Number(row.price),
+    quantity: row.quantity ?? 1,
     store: row.store,
     date: row.recorded_date,
   }
@@ -37,6 +38,7 @@ export const usePriceStore = create((set) => ({
         product_id: record.productId,
         household_id: record.householdId,
         price: record.price,
+        quantity: record.quantity ?? 1,
         store: record.store,
         recorded_date: record.date,
       })

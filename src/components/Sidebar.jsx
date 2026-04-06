@@ -67,7 +67,7 @@ export default function Sidebar() {
           }
         >
           <PackageSearch size={16} />
-          Editar productos
+          Productos
         </NavLink>
       </div>
 

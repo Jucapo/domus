@@ -58,7 +58,7 @@ export default function AvatarMenu({ size = 'md' }) {
               className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
             >
               <PackageSearch size={16} className="text-slate-400" />
-              Editar productos
+              Productos
             </button>
           </div>
 

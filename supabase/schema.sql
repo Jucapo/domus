@@ -50,6 +50,7 @@ create table public.price_records (
   product_id uuid not null references public.products(id) on delete cascade,
   household_id uuid not null references public.households(id) on delete cascade,
   price numeric(12,2) not null,
+  quantity integer not null default 1,
   store text not null default '',
   recorded_date date not null default current_date,
   created_at timestamptz not null default now()

@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  PackagePlus,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
@@ -25,6 +26,7 @@ export default function GestionProductos() {
   const allProducts = useProductStore((s) => s.products)
   const updateProduct = useProductStore((s) => s.updateProduct)
   const deleteProduct = useProductStore((s) => s.deleteProduct)
+  const addProduct = useProductStore((s) => s.addProduct)
 
   const allCategories = useCategoryStore((s) => s.categories)
   const categories = useMemo(
@@ -36,6 +38,18 @@ export default function GestionProductos() {
     () => allProducts.filter((p) => p.householdId === householdId),
     [allProducts, householdId],
   )
+
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    name: '',
+    categoryId: '',
+    quantity: 0,
+    unit: 'unit',
+    brand: '',
+    packageSize: '',
+    imageUrl: '',
+    notes: '',
+  })
 
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({
@@ -87,6 +101,24 @@ export default function GestionProductos() {
     setEditingId(null)
   }
 
+  const handleCreate = async () => {
+    const trimmed = createForm.name.trim()
+    if (!trimmed || !createForm.categoryId) return
+    await addProduct({
+      householdId,
+      name: trimmed,
+      categoryId: createForm.categoryId,
+      quantity: createForm.quantity,
+      unit: createForm.unit,
+      brand: createForm.brand.trim(),
+      packageSize: createForm.packageSize.trim(),
+      imageUrl: createForm.imageUrl.trim(),
+      notes: createForm.notes.trim(),
+    })
+    setCreateForm({ name: '', categoryId: '', quantity: 0, unit: 'unit', brand: '', packageSize: '', imageUrl: '', notes: '' })
+    setShowCreateForm(false)
+  }
+
   const handleDelete = (product) => {
     if (!window.confirm(`¿Eliminar "${product.name}" del inventario?`)) return
     deleteProduct(product.id)
@@ -94,23 +126,47 @@ export default function GestionProductos() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-3 md:mb-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
-            Editar productos
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {products.length}{' '}
-            {products.length === 1 ? 'producto' : 'productos'} en el hogar
-          </p>
+      <div className="mb-6 flex items-center justify-between md:mb-8">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+              Productos
+            </h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              {products.length}{' '}
+              {products.length === 1 ? 'producto' : 'productos'} en el hogar
+            </p>
+          </div>
         </div>
+        <button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 md:px-4 md:py-2.5"
+        >
+          <PackagePlus size={16} />
+          <span className="hidden sm:inline">Agregar producto</span>
+          <span className="sm:hidden">Agregar</span>
+        </button>
       </div>
+
+      {showCreateForm && (
+        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 md:p-4">
+          <p className="mb-3 text-sm font-medium text-slate-700">Nuevo producto</p>
+          <CreateForm
+            form={createForm}
+            setForm={setCreateForm}
+            categories={categories}
+            onConfirm={handleCreate}
+            onCancel={() => setShowCreateForm(false)}
+            navigate={navigate}
+          />
+        </div>
+      )}
 
       <div className="relative mb-5">
         <Search
@@ -243,6 +299,111 @@ function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }) {
+  const [showOptional, setShowOptional] = useState(false)
+
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none'
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <input
+          autoFocus
+          type="text"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onCancel()
+          }}
+          placeholder="Nombre del producto"
+          className={inputClass}
+        />
+        <select
+          value={form.categoryId}
+          onChange={(e) => {
+            if (e.target.value === '__create__') {
+              navigate('/gestion/categorias')
+              return
+            }
+            setForm({ ...form, categoryId: e.target.value })
+          }}
+          className={inputClass}
+        >
+          <option value="" disabled>Categoría</option>
+          {categories
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          <option value="__create__">+ Crear categoría</option>
+        </select>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            min={0}
+            value={form.quantity}
+            onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value) || 0 })}
+            placeholder="Cant."
+            className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          />
+          <select
+            value={form.unit}
+            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          >
+            {UNITS.map((u) => (
+              <option key={u.id} value={u.id}>{u.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setShowOptional(!showOptional)}
+        className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+      >
+        {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+      </button>
+
+      {showOptional && (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Marca</label>
+            <input type="text" placeholder="Ej: Alquería, Diana..." value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Cantidad por envase</label>
+            <input type="text" placeholder="Ej: 1.1L, 500g, 12 und..." value={form.packageSize} onChange={(e) => setForm({ ...form, packageSize: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">URL de foto</label>
+            <input type="url" placeholder="https://..." value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} className={inputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Comentario</label>
+            <input type="text" placeholder="Notas adicionales..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputClass} />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex justify-end gap-2">
+        <button onClick={onCancel} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+          <X size={14} />
+          Cancelar
+        </button>
+        <button onClick={onConfirm} className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+          <Check size={14} />
+          Guardar
+        </button>
+      </div>
+    </>
   )
 }
 

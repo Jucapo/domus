@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package } from 'lucide-react'
+import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
@@ -38,7 +38,12 @@ export default function Inventario() {
     categoryId: '',
     quantity: 1,
     unit: 'unit',
+    brand: '',
+    packageSize: '',
+    imageUrl: '',
+    notes: '',
   })
+  const [showOptional, setShowOptional] = useState(false)
 
   const filtered = products.filter(
     (p) =>
@@ -52,7 +57,8 @@ export default function Inventario() {
     e.preventDefault()
     if (!newProduct.name.trim() || !newProduct.categoryId) return
     addProduct({ ...newProduct, householdId })
-    setNewProduct({ name: '', categoryId: '', quantity: 1, unit: 'unit' })
+    setNewProduct({ name: '', categoryId: '', quantity: 1, unit: 'unit', brand: '', packageSize: '', imageUrl: '', notes: '' })
+    setShowOptional(false)
     setShowForm(false)
   }
 
@@ -147,6 +153,48 @@ export default function Inventario() {
               Guardar
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowOptional(!showOptional)}
+            className="mt-3 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            {showOptional ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            {showOptional ? 'Ocultar detalles' : 'Más detalles (marca, foto, notas...)'}
+          </button>
+
+          {showOptional && (
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <input
+                type="text"
+                placeholder="Marca"
+                value={newProduct.brand}
+                onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Cantidad por envase (ej: 1.1L)"
+                value={newProduct.packageSize}
+                onChange={(e) => setNewProduct({ ...newProduct, packageSize: e.target.value })}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              />
+              <input
+                type="url"
+                placeholder="URL de foto"
+                value={newProduct.imageUrl}
+                onChange={(e) => setNewProduct({ ...newProduct, imageUrl: e.target.value })}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Notas adicionales"
+                value={newProduct.notes}
+                onChange={(e) => setNewProduct({ ...newProduct, notes: e.target.value })}
+                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+              />
+            </div>
+          )}
         </form>
       )}
 

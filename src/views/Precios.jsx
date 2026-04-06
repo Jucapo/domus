@@ -10,6 +10,7 @@ import {
   TrendingDown,
   Minus,
   ClipboardList,
+  ShoppingBag,
   X,
 } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
@@ -98,10 +99,20 @@ export default function Precios() {
 }
 
 function PendingTab({ householdId, products }) {
+  const allProducts = useProductStore((s) => s.products)
   const completeRegistration = useProductStore((s) => s.completeRegistration)
   const skipRegistration = useProductStore((s) => s.skipRegistration)
   const addRecord = usePriceStore((s) => s.addRecord)
   const allRecords = usePriceStore((s) => s.records)
+  const updateProduct = useProductStore((s) => s.updateProduct)
+
+  const householdProducts = useMemo(
+    () =>
+      allProducts
+        .filter((p) => p.householdId === householdId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allProducts, householdId],
+  )
 
   const allStores = useMemo(() => {
     const set = new Set(
@@ -120,8 +131,18 @@ function PendingTab({ householdId, products }) {
     date: new Date().toISOString().split('T')[0],
   })
 
+  const [showManualForm, setShowManualForm] = useState(false)
+  const [manualForm, setManualForm] = useState({
+    productId: '',
+    quantity: '1',
+    price: '',
+    store: '',
+    date: new Date().toISOString().split('T')[0],
+  })
+
   const startForm = (product) => {
     setActiveFormId(product.id)
+    setShowManualForm(false)
     setForm({
       quantity: '1',
       price: '',
@@ -140,6 +161,7 @@ function PendingTab({ householdId, products }) {
       productId: product.id,
       householdId,
       price,
+      quantity,
       store: form.store.trim(),
       date: form.date,
     })
@@ -147,174 +169,310 @@ function PendingTab({ householdId, products }) {
     setActiveFormId(null)
   }
 
-  if (products.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-12 md:py-16">
-        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
-          <ClipboardList size={24} className="text-indigo-400" />
-        </div>
-        <p className="text-sm font-medium text-slate-700">
-          No hay compras por registrar
-        </p>
-        <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
-          Cuando marques un producto como &ldquo;Comprado&rdquo; en la lista de
-          compras, aparecerá aquí para que registres precio y cantidad.
-        </p>
-      </div>
-    )
+  const handleManualSubmit = (e) => {
+    e.preventDefault()
+    const quantity = parseInt(manualForm.quantity) || 0
+    const price = parseFloat(manualForm.price)
+    if (!manualForm.productId || quantity <= 0 || !price || price <= 0 || !manualForm.store.trim()) return
+
+    addRecord({
+      productId: manualForm.productId,
+      householdId,
+      price,
+      quantity,
+      store: manualForm.store.trim(),
+      date: manualForm.date,
+    })
+
+    const product = householdProducts.find((p) => p.id === manualForm.productId)
+    if (product) {
+      updateProduct(product.id, { quantity: product.quantity + quantity })
+    }
+
+    setManualForm({ productId: '', quantity: '1', price: '', store: '', date: new Date().toISOString().split('T')[0] })
+    setShowManualForm(false)
   }
 
-  return (
-    <div className="space-y-2">
-      {products.map((product) => {
-        const unit = unitMap[product.unit]
-        const isFormOpen = activeFormId === product.id
+  const selectedManualProduct = householdProducts.find((p) => p.id === manualForm.productId)
+  const manualUnit = selectedManualProduct ? unitMap[selectedManualProduct.unit] : null
 
-        return (
-          <div
-            key={product.id}
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-          >
-            <div className="flex items-center justify-between gap-3 px-3 py-3 md:px-5 md:py-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
-                  <ClipboardList size={16} className="text-indigo-500" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                    {product.name}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {product.category}
-                    {unit && (
-                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                        {unit.label}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <button
-                  onClick={() => skipRegistration(product.id)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 md:h-auto md:w-auto md:gap-1.5 md:px-3 md:py-2 md:text-sm"
-                  title="Omitir registro"
-                >
-                  <X size={14} />
-                  <span className="hidden md:inline text-slate-500">Omitir</span>
-                </button>
-                {!isFormOpen && (
-                  <button
-                    onClick={() => startForm(product)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 md:px-3"
-                  >
-                    <Plus size={14} />
-                    <span className="hidden sm:inline">Registrar</span>
-                  </button>
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => {
+            setShowManualForm(!showManualForm)
+            setActiveFormId(null)
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-violet-700"
+        >
+          <ShoppingBag size={15} />
+          Registrar compra
+        </button>
+      </div>
+
+      {showManualForm && (
+        <form
+          onSubmit={handleManualSubmit}
+          className="rounded-xl border border-violet-200 bg-violet-50/30 p-3 md:p-4"
+        >
+          <p className="mb-3 text-sm font-medium text-slate-700">Registrar compra manual</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Producto</label>
+              <select
+                value={manualForm.productId}
+                onChange={(e) => setManualForm({ ...manualForm, productId: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="" disabled>Seleccionar producto...</option>
+                {householdProducts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.category ? ` (${p.category})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Cantidad comprada</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min="1"
+                  value={manualForm.quantity}
+                  onChange={(e) => setManualForm({ ...manualForm, quantity: e.target.value })}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+                {manualUnit && (
+                  <span className="shrink-0 text-xs text-slate-400">{manualUnit.abbreviation}</span>
                 )}
               </div>
             </div>
-
-            {isFormOpen && (
-              <form
-                onSubmit={(e) => handleSubmit(e, product)}
-                className="border-t border-slate-100 bg-slate-50/50 px-3 py-3 md:px-5 md:py-4"
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Precio pagado</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="$"
+                value={manualForm.price}
+                onChange={(e) => setManualForm({ ...manualForm, price: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Lugar de compra</label>
+              <input
+                type="text"
+                placeholder="Tienda"
+                value={manualForm.store}
+                onChange={(e) => setManualForm({ ...manualForm, store: e.target.value })}
+                list="manual-stores"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+              {allStores.length > 0 && (
+                <datalist id="manual-stores">
+                  {allStores.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Fecha</label>
+              <input
+                type="date"
+                value={manualForm.date}
+                onChange={(e) => setManualForm({ ...manualForm, date: e.target.value })}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowManualForm(false)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
               >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">
-                      Cantidad comprada
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <input
-                        autoFocus
-                        type="number"
-                        min="1"
-                        value={form.quantity}
-                        onChange={(e) =>
-                          setForm({ ...form, quantity: e.target.value })
-                        }
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                      />
-                      {unit && (
-                        <span className="shrink-0 text-xs text-slate-400">
-                          {unit.abbreviation}
-                        </span>
-                      )}
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-lg bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-700"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {products.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-12 md:py-16">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
+            <ClipboardList size={24} className="text-indigo-400" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">
+            No hay compras por registrar
+          </p>
+          <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
+            Cuando marques un producto como &ldquo;Comprado&rdquo; en la lista de
+            compras, aparecerá aquí. También puedes usar el botón
+            &ldquo;Registrar compra&rdquo; para agregar una compra manual.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {products.map((product) => {
+            const unit = unitMap[product.unit]
+            const isFormOpen = activeFormId === product.id
+
+            return (
+              <div
+                key={product.id}
+                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-3 px-3 py-3 md:px-5 md:py-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
+                      <ClipboardList size={16} className="text-indigo-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-900 md:text-base">
+                        {product.name}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {product.category}
+                        {unit && (
+                          <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                            {unit.label}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">
-                      Precio pagado
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="$"
-                      value={form.price}
-                      onChange={(e) =>
-                        setForm({ ...form, price: e.target.value })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">
-                      Lugar de compra
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Tienda"
-                      value={form.store}
-                      onChange={(e) =>
-                        setForm({ ...form, store: e.target.value })
-                      }
-                      list="global-stores"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    />
-                    {allStores.length > 0 && (
-                      <datalist id="global-stores">
-                        {allStores.map((s) => (
-                          <option key={s} value={s} />
-                        ))}
-                      </datalist>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={() => skipRegistration(product.id)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-slate-50 md:h-auto md:w-auto md:gap-1.5 md:px-3 md:py-2 md:text-sm"
+                      title="Omitir registro"
+                    >
+                      <X size={14} />
+                      <span className="hidden md:inline text-slate-500">Omitir</span>
+                    </button>
+                    {!isFormOpen && (
+                      <button
+                        onClick={() => startForm(product)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 md:px-3"
+                      >
+                        <Plus size={14} />
+                        <span className="hidden sm:inline">Registrar</span>
+                      </button>
                     )}
                   </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">
-                      Fecha
-                    </label>
-                    <input
-                      type="date"
-                      value={form.date}
-                      onChange={(e) =>
-                        setForm({ ...form, date: e.target.value })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveFormId(null)}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                    >
-                      Guardar
-                    </button>
-                  </div>
                 </div>
-              </form>
-            )}
-          </div>
-        )
-      })}
+
+                {isFormOpen && (
+                  <form
+                    onSubmit={(e) => handleSubmit(e, product)}
+                    className="border-t border-slate-100 bg-slate-50/50 px-3 py-3 md:px-5 md:py-4"
+                  >
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-500">
+                          Cantidad comprada
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            type="number"
+                            min="1"
+                            value={form.quantity}
+                            onChange={(e) =>
+                              setForm({ ...form, quantity: e.target.value })
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                          />
+                          {unit && (
+                            <span className="shrink-0 text-xs text-slate-400">
+                              {unit.abbreviation}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-500">
+                          Precio pagado
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="$"
+                          value={form.price}
+                          onChange={(e) =>
+                            setForm({ ...form, price: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-500">
+                          Lugar de compra
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Tienda"
+                          value={form.store}
+                          onChange={(e) =>
+                            setForm({ ...form, store: e.target.value })
+                          }
+                          list="global-stores"
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        />
+                        {allStores.length > 0 && (
+                          <datalist id="global-stores">
+                            {allStores.map((s) => (
+                              <option key={s} value={s} />
+                            ))}
+                          </datalist>
+                        )}
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-slate-500">
+                          Fecha
+                        </label>
+                        <input
+                          type="date"
+                          value={form.date}
+                          onChange={(e) =>
+                            setForm({ ...form, date: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveFormId(null)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                        >
+                          Guardar
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -495,6 +653,7 @@ function ExpandedHistory({ product, records, householdId }) {
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
+    quantity: '1',
     price: '',
     store: '',
     date: new Date().toISOString().split('T')[0],
@@ -503,15 +662,18 @@ function ExpandedHistory({ product, records, householdId }) {
   const handleAdd = (e) => {
     e.preventDefault()
     const price = parseFloat(form.price)
+    const quantity = parseInt(form.quantity) || 1
     if (!price || price <= 0 || !form.store.trim()) return
     addRecord({
       productId: product.id,
       householdId,
       price,
+      quantity,
       store: form.store.trim(),
       date: form.date,
     })
     setForm({
+      quantity: '1',
       price: '',
       store: '',
       date: new Date().toISOString().split('T')[0],
@@ -591,7 +753,15 @@ function ExpandedHistory({ product, records, householdId }) {
           onSubmit={handleAdd}
           className="mb-3 rounded-lg border border-slate-200 bg-white p-3"
         >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+            <input
+              type="number"
+              min="1"
+              placeholder="Cant."
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            />
             <input
               type="number"
               step="any"
