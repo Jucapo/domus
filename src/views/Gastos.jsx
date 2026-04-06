@@ -152,11 +152,13 @@ export default function Gastos() {
         }
       }
 
-      catMap[catId].products[r.productId].total += r.price
-      catMap[catId].products[r.productId].quantity += (r.quantity ?? 1)
+      const q = Number(r.quantity ?? 1)
+      const lineTotal = r.price * q
+      catMap[catId].products[r.productId].total += lineTotal
+      catMap[catId].products[r.productId].quantity += q
       catMap[catId].products[r.productId].records += 1
-      catMap[catId].total += r.price
-      total += r.price
+      catMap[catId].total += lineTotal
+      total += lineTotal
     })
 
     const sorted = Object.values(catMap)

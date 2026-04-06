@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { ArrowLeft, Plus, Pencil, Trash2, Check, X } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowLeft, Plus, Pencil, Trash2, Check, X, Palette } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
@@ -41,6 +41,58 @@ export default function GestionCategorias() {
   const [editingIcon, setEditingIcon] = useState('tag')
   const [editingColor, setEditingColor] = useState('indigo')
 
+  /** null | { mode:'new', icon, color } | { mode:'edit', cat, icon, color, syncWithNameEdit: boolean } */
+  const [styleModal, setStyleModal] = useState(null)
+  const [modalTab, setModalTab] = useState('icons')
+
+  useEffect(() => {
+    if (!styleModal) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setStyleModal(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [styleModal])
+
+  const openStyleModalNew = () => {
+    setModalTab('icons')
+    setStyleModal({ mode: 'new', icon: newIcon, color: newColor })
+  }
+
+  const openStyleModalEdit = (cat) => {
+    setModalTab('icons')
+    const syncing = editingId === cat.id
+    setStyleModal({
+      mode: 'edit',
+      cat,
+      icon: syncing ? editingIcon : cat.icon || 'tag',
+      color: syncing ? editingColor : cat.color || 'indigo',
+      syncWithNameEdit: syncing,
+    })
+  }
+
+  const applyStyleModal = () => {
+    if (!styleModal) return
+    if (styleModal.mode === 'new') {
+      setNewIcon(styleModal.icon)
+      setNewColor(styleModal.color)
+    } else if (styleModal.syncWithNameEdit) {
+      setEditingIcon(styleModal.icon)
+      setEditingColor(styleModal.color)
+    } else {
+      updateCategoryStyle(styleModal.cat.id, { icon: styleModal.icon, color: styleModal.color })
+    }
+    setStyleModal(null)
+  }
+
+  const updateModalIcon = (id) => {
+    setStyleModal((s) => (s ? { ...s, icon: id } : s))
+  }
+
+  const updateModalColor = (id) => {
+    setStyleModal((s) => (s ? { ...s, color: id } : s))
+  }
+
   const handleAdd = (e) => {
     e.preventDefault()
     const trimmed = newName.trim()
@@ -62,7 +114,7 @@ export default function GestionCategorias() {
 
   const confirmEdit = (cat) => {
     const trimmed = editingName.trim()
-    if (!trimmed || trimmed === cat.name) {
+    if (!trimmed) {
       setEditingId(null)
       return
     }
@@ -75,14 +127,13 @@ export default function GestionCategorias() {
       setEditingId(null)
       return
     }
-    renameCategory(cat.id, trimmed)
+    const nameChanged = trimmed !== cat.name
+    if (nameChanged) {
+      renameCategory(cat.id, trimmed)
+    }
     updateCategoryStyle(cat.id, { icon: editingIcon, color: editingColor })
     if (householdId) fetchProducts(householdId)
     setEditingId(null)
-  }
-
-  const saveStyleOnly = (cat, updates) => {
-    updateCategoryStyle(cat.id, updates)
   }
 
   const handleDelete = (cat) => {
@@ -116,40 +167,21 @@ export default function GestionCategorias() {
         </div>
       </div>
 
-      <form onSubmit={handleAdd} className="mb-5 flex gap-2">
+      <form onSubmit={handleAdd} className="mb-5 flex flex-wrap gap-2">
         <input
           type="text"
           placeholder="Nueva categoría..."
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
         />
         <button
           type="button"
-          onClick={() => {
-            const idx = CATEGORY_ICON_OPTIONS.findIndex((o) => o.id === newIcon)
-            const next = CATEGORY_ICON_OPTIONS[(idx + 1) % CATEGORY_ICON_OPTIONS.length]
-            setNewIcon(next.id)
-          }}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-          title="Cambiar icono"
+          onClick={openStyleModalNew}
+          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
-          {(() => {
-            const Icon = CATEGORY_ICON_MAP[newIcon]
-            return Icon ? <Icon size={18} /> : null
-          })()}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const idx = CATEGORY_COLOR_OPTIONS.findIndex((o) => o.id === newColor)
-            const next = CATEGORY_COLOR_OPTIONS[(idx + 1) % CATEGORY_COLOR_OPTIONS.length]
-            setNewColor(next.id)
-          }}
-          className={`inline-flex h-11 w-11 items-center justify-center rounded-lg border ${CATEGORY_COLOR_MAP[newColor] || 'border-slate-200 bg-slate-50 text-slate-600'}`}
-          title="Cambiar color"
-        >
-          <span className="h-4 w-4 rounded-full bg-white/50" />
+          <Palette size={18} className="text-indigo-600" />
+          <span className="hidden sm:inline">Icono y color</span>
         </button>
         <button
           type="submit"
@@ -159,51 +191,6 @@ export default function GestionCategorias() {
           <span className="hidden sm:inline">Agregar</span>
         </button>
       </form>
-
-      <details className="mb-5 rounded-xl border border-slate-200 bg-white px-3 py-3 md:px-4">
-        <summary className="cursor-pointer select-none text-sm font-medium text-slate-700">
-          Selector de iconos y colores
-          <span className="ml-2 text-xs font-normal text-slate-400">(opcional)</span>
-        </summary>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Iconos</p>
-            <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-10">
-              {CATEGORY_ICON_OPTIONS.map(({ id, Icon, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setNewIcon(id)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
-                    newIcon === id ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                  title={label}
-                >
-                  <Icon size={16} />
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Colores</p>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORY_COLOR_OPTIONS.map(({ id, label, className }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setNewColor(id)}
-                  className={`rounded-lg border px-3 py-2 text-xs font-semibold ${className} ${
-                    newColor === id ? 'ring-2 ring-indigo-500/20' : ''
-                  }`}
-                  title={label}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </details>
 
       <div className="space-y-1.5">
         {categories
@@ -246,9 +233,9 @@ export default function GestionCategorias() {
                       <p className="truncate text-sm font-medium text-slate-900">
                         {cat.name}
                       </p>
-                    <p className="text-xs text-slate-400">
-                      {count} {count === 1 ? 'producto' : 'productos'}
-                    </p>
+                      <p className="text-xs text-slate-400">
+                        {count} {count === 1 ? 'producto' : 'productos'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -258,30 +245,11 @@ export default function GestionCategorias() {
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          const idx = CATEGORY_ICON_OPTIONS.findIndex((o) => o.id === editingIcon)
-                          const next = CATEGORY_ICON_OPTIONS[(idx + 1) % CATEGORY_ICON_OPTIONS.length]
-                          setEditingIcon(next.id)
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        title="Cambiar icono"
+                        onClick={() => openStyleModalEdit(cat)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50"
+                        title="Icono y color"
                       >
-                        {(() => {
-                          const Icon = CATEGORY_ICON_MAP[editingIcon]
-                          return Icon ? <Icon size={14} /> : null
-                        })()}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const idx = CATEGORY_COLOR_OPTIONS.findIndex((o) => o.id === editingColor)
-                          const next = CATEGORY_COLOR_OPTIONS[(idx + 1) % CATEGORY_COLOR_OPTIONS.length]
-                          setEditingColor(next.id)
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        title="Cambiar color"
-                      >
-                        <span className={`h-3 w-3 rounded-full border ${CATEGORY_COLOR_MAP[editingColor] || 'border-slate-200 bg-slate-50'}`} />
+                        <Palette size={16} />
                       </button>
                       <button
                         onClick={() => confirmEdit(cat)}
@@ -300,32 +268,11 @@ export default function GestionCategorias() {
                     <>
                       <button
                         type="button"
-                        onClick={() => {
-                          const currIcon = cat.icon || 'tag'
-                          const idx = CATEGORY_ICON_OPTIONS.findIndex((o) => o.id === currIcon)
-                          const next = CATEGORY_ICON_OPTIONS[(idx + 1) % CATEGORY_ICON_OPTIONS.length]
-                          saveStyleOnly(cat, { icon: next.id })
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        title="Cambiar icono"
+                        onClick={() => openStyleModalEdit(cat)}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50"
+                        title="Icono y color"
                       >
-                        {(() => {
-                          const Icon = CATEGORY_ICON_MAP[cat.icon || 'tag']
-                          return Icon ? <Icon size={14} /> : null
-                        })()}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currColor = cat.color || 'indigo'
-                          const idx = CATEGORY_COLOR_OPTIONS.findIndex((o) => o.id === currColor)
-                          const next = CATEGORY_COLOR_OPTIONS[(idx + 1) % CATEGORY_COLOR_OPTIONS.length]
-                          saveStyleOnly(cat, { color: next.id })
-                        }}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        title="Cambiar color"
-                      >
-                        <span className={`h-3 w-3 rounded-full border ${CATEGORY_COLOR_MAP[cat.color] || 'border-slate-200 bg-slate-50'}`} />
+                        <Palette size={16} />
                       </button>
                       <button
                         onClick={() => startEdit(cat)}
@@ -352,6 +299,118 @@ export default function GestionCategorias() {
           </p>
         )}
       </div>
+
+      {styleModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="category-style-modal-title"
+          onClick={() => setStyleModal(null)}
+        >
+          <div
+            className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-2xl border border-slate-200 bg-white shadow-xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <h3 id="category-style-modal-title" className="text-base font-semibold text-slate-900">
+                {styleModal.mode === 'new' ? 'Nueva categoría' : 'Estilo de categoría'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setStyleModal(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex border-b border-slate-100 px-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setModalTab('icons')}
+                className={`flex-1 rounded-t-lg py-2.5 text-sm font-medium transition-colors ${
+                  modalTab === 'icons'
+                    ? 'border-b-2 border-indigo-600 text-indigo-700'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Iconos
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab('colors')}
+                className={`flex-1 rounded-t-lg py-2.5 text-sm font-medium transition-colors ${
+                  modalTab === 'colors'
+                    ? 'border-b-2 border-indigo-600 text-indigo-700'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Color
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              {modalTab === 'icons' && (
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
+                  {CATEGORY_ICON_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => updateModalIcon(opt.id)}
+                      className={`flex aspect-square items-center justify-center rounded-xl border transition-colors ${
+                        styleModal.icon === opt.id
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-500/20'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                      title={opt.label}
+                    >
+                      <opt.Icon size={20} />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {modalTab === 'colors' && (
+                <div className="grid grid-cols-9 gap-1.5">
+                  {CATEGORY_COLOR_OPTIONS.map(({ id, className }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => updateModalColor(id)}
+                      aria-label={`Color ${id}`}
+                      title={id}
+                      className={`aspect-square min-h-0 rounded-md border transition-transform hover:scale-105 ${className} ${
+                        styleModal.color === id
+                          ? 'z-10 scale-105 ring-2 ring-slate-900/45 ring-offset-2'
+                          : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-slate-100 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setStyleModal(null)}
+                className="flex-1 rounded-lg border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={applyStyleModal}
+                className="flex-1 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

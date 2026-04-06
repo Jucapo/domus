@@ -7,7 +7,7 @@ function mapRow(row) {
     productId: row.product_id,
     householdId: row.household_id,
     price: Number(row.price),
-    quantity: row.quantity ?? 1,
+    quantity: Number(row.quantity ?? 1),
     store: row.store,
     date: row.recorded_date,
   }
@@ -47,6 +47,28 @@ export const usePriceStore = create((set) => ({
 
     if (!error && data) {
       set((state) => ({ records: [mapRow(data), ...state.records] }))
+    }
+    return { error }
+  },
+
+  updateRecord: async (recordId, record) => {
+    const { data, error } = await supabase
+      .from('price_records')
+      .update({
+        price: record.price,
+        quantity: record.quantity ?? 1,
+        store: record.store,
+        recorded_date: record.date,
+      })
+      .eq('id', recordId)
+      .select()
+      .single()
+
+    if (!error && data) {
+      const updated = mapRow(data)
+      set((state) => ({
+        records: state.records.map((r) => (r.id === recordId ? updated : r)),
+      }))
     }
     return { error }
   },

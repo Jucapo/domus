@@ -15,11 +15,25 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import ImageUploader from '../components/ImageUploader'
+import CategorySection from '../components/CategorySection'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
-import { CATEGORY_ICON_MAP, CATEGORY_COLOR_MAP } from '../data/category_styles'
+import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
+import {
+  ALL_UNITS,
+  BASE_UNITS,
+  PACKAGE_UNITS,
+  isPackageUnit,
+  ALL_UNITS_MAP,
+  packageContentRowLabel,
+} from '../data/units'
+import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
+import {
+  buildProductMetaChips,
+  productUnitSummaryLine,
+  PRODUCT_META_CHIP_CLASS,
+} from '../lib/productDisplay'
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -78,6 +92,23 @@ export default function GestionProductos() {
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase()) ||
       (p.brand && p.brand.toLowerCase().includes(search.toLowerCase())),
+  )
+
+  const categoryNames = useMemo(() => {
+    const counts = new Map()
+    for (const p of filtered) {
+      counts.set(p.category, (counts.get(p.category) || 0) + 1)
+    }
+    return [...counts.keys()].sort((a, b) => {
+      const diff = (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+      if (diff !== 0) return diff
+      return a.localeCompare(b)
+    })
+  }, [filtered])
+
+  const { toggleCategory, isCategoryCollapsed } = useCategoryAccordion(
+    householdId,
+    'gestion-productos',
   )
 
   const startEdit = (product) => {
@@ -195,36 +226,58 @@ export default function GestionProductos() {
         />
       </div>
 
-      <div className="space-y-2">
-        {filtered.map((product) => {
-          const isEditing = editingId === product.id
-
-          if (isEditing) {
-            return (
-              <EditForm
-                key={product.id}
-                product={product}
-                form={editForm}
-                setForm={setEditForm}
-                categories={categories}
-                onConfirm={() => confirmEdit(product.id)}
-                onCancel={() => setEditingId(null)}
-                navigate={navigate}
-              />
-            )
-          }
+      <div className="space-y-5 md:space-y-6">
+        {categoryNames.map((category) => {
+          const categoryProducts = filtered
+            .filter((p) => p.category === category)
+            .sort((a, b) => a.name.localeCompare(b.name))
+          const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
+          const productAccent =
+            CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
 
           return (
-            <ProductCard
-              key={product.id}
-              product={product}
-              categoryMetaByName={categoryMetaByName}
-              onEdit={() => startEdit(product)}
-              onDelete={() => handleDelete(product)}
-              onToggleVisibility={() =>
-                updateProduct(product.id, { visibleInInventory: product.visibleInInventory === false })
-              }
-            />
+            <CategorySection
+              key={category}
+              categoryName={category}
+              productCount={categoryProducts.length}
+              meta={meta}
+              isCollapsed={isCategoryCollapsed(category)}
+              onToggle={() => toggleCategory(category)}
+            >
+              {categoryProducts.map((product) => {
+                const isEditing = editingId === product.id
+
+                if (isEditing) {
+                  return (
+                    <EditForm
+                      key={product.id}
+                      product={product}
+                      form={editForm}
+                      setForm={setEditForm}
+                      categories={categories}
+                      onConfirm={() => confirmEdit(product.id)}
+                      onCancel={() => setEditingId(null)}
+                      navigate={navigate}
+                    />
+                  )
+                }
+
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    accentClass={productAccent}
+                    onEdit={() => startEdit(product)}
+                    onDelete={() => handleDelete(product)}
+                    onToggleVisibility={() =>
+                      updateProduct(product.id, {
+                        visibleInInventory: product.visibleInInventory === false,
+                      })
+                    }
+                  />
+                )
+              })}
+            </CategorySection>
           )
         })}
 
@@ -238,14 +291,19 @@ export default function GestionProductos() {
   )
 }
 
-function ProductCard({ product, onEdit, onDelete, onToggleVisibility, categoryMetaByName }) {
+function ProductCard({
+  product,
+  onEdit,
+  onDelete,
+  onToggleVisibility,
+  accentClass = '',
+}) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
-  const hasExtras = product.brand || product.notes
-  const meta = categoryMetaByName?.get(product.category) || null
-  const CatIcon = meta ? (CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag) : null
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm md:px-4 md:py-3">
+    <div
+      className={`rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-4 md:py-3 ${accentClass}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {product.imageUrl ? (
@@ -260,31 +318,29 @@ function ProductCard({ product, onEdit, onDelete, onToggleVisibility, categoryMe
             </div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">
-              {product.name}
-              {product.brand && (
-                <span className="ml-1.5 font-normal text-slate-400">
-                  — {product.brand}
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-slate-500">
-              {meta ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <span className="min-w-0 truncate text-sm font-medium text-slate-900">
+                {product.name}
+              </span>
+              {buildProductMetaChips(product).map((chip) => (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${
-                    CATEGORY_COLOR_MAP[meta.color] || 'bg-slate-100 text-slate-700 border-slate-200'
-                  }`}
+                  key={`${product.id}:${chip.key}`}
+                  className={PRODUCT_META_CHIP_CLASS}
                 >
-                  {CatIcon ? <CatIcon size={12} /> : null}
-                  {product.category}
+                  {chip.label}
                 </span>
-              ) : (
-                product.category
-              )}
-              <span className="mx-1.5 text-slate-300">·</span>
-              {formatProductUnit(product)}
-              <span className="mx-1.5 text-slate-300">·</span>
-              Stock: {product.quantity}
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                {productUnitSummaryLine(product)}
+              </span>
+              <span className="ml-1.5 text-slate-400">
+                · Stock: {product.quantity}
+                {unit && (
+                  <span className="ml-0.5 text-slate-400">{unit.abbreviation}</span>
+                )}
+              </span>
             </p>
             {product.notes && (
               <p className="mt-0.5 truncate text-xs text-slate-400 italic">
@@ -400,8 +456,10 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
       </div>
 
       {isPackageUnit(form.displayUnit) && (
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-slate-500 whitespace-nowrap">Contenido por {ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'}:</span>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+            {packageContentRowLabel(form.displayUnit)}:
+          </span>
           <input
             type="number"
             step="any"
@@ -416,7 +474,7 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
             onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           >
-            <option value="">Unidad</option>
+            <option value="">Seleccionar medida…</option>
             {BASE_UNITS.map((u) => (
               <option key={u.id} value={u.id}>{u.label}</option>
             ))}
@@ -543,8 +601,10 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
       </div>
 
       {isPackageUnit(form.displayUnit) && (
-        <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-slate-500 whitespace-nowrap">Contenido por {ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'}:</span>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+            {packageContentRowLabel(form.displayUnit)}:
+          </span>
           <input
             type="number"
             step="any"
@@ -559,7 +619,7 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
             onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           >
-            <option value="">Unidad</option>
+            <option value="">Seleccionar medida…</option>
             {BASE_UNITS.map((u) => (
               <option key={u.id} value={u.id}>{u.label}</option>
             ))}

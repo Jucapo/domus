@@ -1,12 +1,26 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Minus, Search, PackagePlus, ShoppingCart, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import ImageUploader from '../components/ImageUploader'
+import CategorySection from '../components/CategorySection'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
-import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
+import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
+import {
+  ALL_UNITS,
+  BASE_UNITS,
+  PACKAGE_UNITS,
+  isPackageUnit,
+  ALL_UNITS_MAP,
+  packageContentRowLabel,
+} from '../data/units'
+import {
+  buildProductMetaChips,
+  productUnitSummaryLine,
+  PRODUCT_META_CHIP_CLASS,
+} from '../lib/productDisplay'
+import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
 
 export default function Inventario() {
   const navigate = useNavigate()
@@ -60,38 +74,22 @@ export default function Inventario() {
       p.category.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const categories = [...new Set(filtered.map((p) => p.category))].sort()
-  const isSearching = search.trim().length > 0
-
-  const collapsedKey = useMemo(() => `inventoryCollapsedCategories:${householdId || 'unknown'}`, [householdId])
-  const [collapsedCategories, setCollapsedCategories] = useState(() => {
-    try {
-      const raw = localStorage.getItem(collapsedKey)
-      const parsed = raw ? JSON.parse(raw) : []
-      return new Set(Array.isArray(parsed) ? parsed : [])
-    } catch {
-      return new Set()
+  const categories = useMemo(() => {
+    const counts = new Map()
+    for (const p of filtered) {
+      counts.set(p.category, (counts.get(p.category) || 0) + 1)
     }
-  })
+    return [...counts.keys()].sort((a, b) => {
+      const diff = (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+      if (diff !== 0) return diff
+      return a.localeCompare(b)
+    })
+  }, [filtered])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(collapsedKey, JSON.stringify(Array.from(collapsedCategories)))
-    } catch {
-      // ignore
-    }
-  }, [collapsedCategories, collapsedKey])
-
-  useEffect(() => {
-    // Cuando cambias de hogar, recarga su estado de colapso
-    try {
-      const raw = localStorage.getItem(collapsedKey)
-      const parsed = raw ? JSON.parse(raw) : []
-      setCollapsedCategories(new Set(Array.isArray(parsed) ? parsed : []))
-    } catch {
-      setCollapsedCategories(new Set())
-    }
-  }, [collapsedKey])
+  const { toggleCategory, isCategoryCollapsed } = useCategoryAccordion(
+    householdId,
+    'inventory',
+  )
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -105,27 +103,6 @@ export default function Inventario() {
     setNewProduct({ name: '', categoryId: '', quantity: 1, displayUnit: 'unit', brand: '', contentAmount: '', contentUnit: '', imageUrl: '', notes: '' })
     setShowOptional(false)
     setShowForm(false)
-  }
-
-  const metaChips = (product) => {
-    const chips = []
-    if (product.brand) chips.push({ key: 'brand', label: product.brand })
-    if (product.contentAmount && product.contentUnit) {
-      const cu = ALL_UNITS_MAP[product.contentUnit]
-      chips.push({
-        key: 'content',
-        label: `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`,
-      })
-    }
-    return chips
-  }
-
-  const unitSummary = (product) => {
-    const du = ALL_UNITS_MAP[product.displayUnit]
-    if (!du) return ''
-    // Si ya mostramos el contenido como chip (p.ej. 3000ml), no lo repetimos en la segunda línea.
-    if (product.contentAmount && product.contentUnit) return du.label
-    return formatProductUnit(product)
   }
 
   return (
@@ -224,8 +201,10 @@ export default function Inventario() {
               </select>
             </div>
             {isPackageUnit(newProduct.displayUnit) && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 whitespace-nowrap">Contenido:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                  {packageContentRowLabel(newProduct.displayUnit)}:
+                </span>
                 <input
                   type="number"
                   step="any"
@@ -240,7 +219,7 @@ export default function Inventario() {
                   onChange={(e) => setNewProduct({ ...newProduct, contentUnit: e.target.value })}
                   className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                 >
-                  <option value="">Unidad</option>
+                  <option value="">Seleccionar medida…</option>
                   {BASE_UNITS.map((u) => (
                     <option key={u.id} value={u.id}>{u.label}</option>
                   ))}
@@ -307,53 +286,30 @@ export default function Inventario() {
       </div>
 
       <div className="space-y-5 md:space-y-6">
-        {categories.map((category) => (
-          <div key={category}>
-            {(() => {
-              const categoryProducts = filtered.filter((p) => p.category === category)
-              const isCollapsed = !isSearching && collapsedCategories.has(category)
-              const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
-              const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
+        {categories.map((category) => {
+          const categoryProducts = filtered
+            .filter((p) => p.category === category)
+            .sort((a, b) => a.name.localeCompare(b.name))
+          const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
+          const productAccent =
+            CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
 
-              return (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCollapsedCategories((prev) => {
-                        const next = new Set(prev)
-                        if (next.has(category)) next.delete(category)
-                        else next.add(category)
-                        return next
-                      })
-                    }}
-                    className={`mb-2 flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left md:mb-3 ${CATEGORY_COLOR_SURFACE_MAP[meta.color] || 'bg-slate-50/60 border-slate-200'}`}
+          return (
+            <CategorySection
+              key={category}
+              categoryName={category}
+              productCount={categoryProducts.length}
+              meta={meta}
+              isCollapsed={isCategoryCollapsed(category)}
+              onToggle={() => toggleCategory(category)}
+            >
+              {categoryProducts.map((product) => {
+                const unit = ALL_UNITS_MAP[product.displayUnit]
+                return (
+                  <div
+                    key={product.id}
+                    className={`flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4 ${productAccent}`}
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/60">
-                        <Icon size={16} className="text-slate-600" />
-                      </div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                        {category}
-                        <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                          {categoryProducts.length}
-                        </span>
-                      </h3>
-                    </div>
-                    <div className="shrink-0 text-slate-400">
-                      {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                    </div>
-                  </button>
-
-                  {!isCollapsed && (
-                    <div className="space-y-2">
-                      {categoryProducts.map((product) => {
-                        const unit = ALL_UNITS_MAP[product.displayUnit]
-                        return (
-                          <div
-                            key={product.id}
-                            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4"
-                          >
                             <div className="flex min-w-0 items-center gap-3 md:gap-4">
                               {product.imageUrl ? (
                                 <img
@@ -371,10 +327,10 @@ export default function Inventario() {
                                   <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
                                     {product.name}
                                   </span>
-                                  {metaChips(product).map((chip) => (
+                                  {buildProductMetaChips(product).map((chip) => (
                                     <span
                                       key={`${product.id}:${chip.key}`}
-                                      className="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50/70 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                                      className={PRODUCT_META_CHIP_CLASS}
                                     >
                                       {chip.label}
                                     </span>
@@ -382,7 +338,7 @@ export default function Inventario() {
                                 </div>
                                 <p className="mt-1 text-xs text-slate-500">
                                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                                    {unitSummary(product)}
+                                    {productUnitSummaryLine(product)}
                                   </span>
                                 </p>
                               </div>
@@ -432,15 +388,11 @@ export default function Inventario() {
                               </button>
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </>
-              )
-            })()}
-          </div>
-        ))}
+                )
+              })}
+            </CategorySection>
+          )
+        })}
 
         {filtered.length === 0 && (
           <div className="py-12 text-center">

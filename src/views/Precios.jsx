@@ -12,13 +12,21 @@ import {
   ClipboardList,
   ShoppingBag,
   X,
+  Pencil,
 } from 'lucide-react'
+import CategorySection from '../components/CategorySection'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
 import { useCategoryStore } from '../store/useCategoryStore'
+import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import { ALL_UNITS_MAP } from '../data/units'
-import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
+import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
+import {
+  buildProductMetaChips,
+  productUnitSummaryLine,
+  PRODUCT_META_CHIP_CLASS,
+} from '../lib/productDisplay'
 
 function formatPrice(price) {
   return new Intl.NumberFormat('es-CO', {
@@ -34,6 +42,14 @@ function formatDate(dateStr) {
     month: 'short',
     year: 'numeric',
   })
+}
+
+/** Total pagado en la compra → precio unitario (por kg, ud, etc.) */
+function paidToUnitPrice(paid, quantityRaw) {
+  const paidN = parseFloat(String(paid).replace(',', '.'))
+  const qty = parseFloat(String(quantityRaw).replace(',', '.'))
+  if (!paidN || paidN <= 0 || !qty || qty <= 0) return null
+  return paidN / qty
 }
 
 const TABS = [
@@ -154,40 +170,42 @@ function PendingTab({ householdId, products }) {
 
   const handleSubmit = (e, product) => {
     e.preventDefault()
-    const quantity = parseInt(form.quantity) || 0
-    const price = parseFloat(form.price)
-    if (quantity <= 0 || !price || price <= 0 || !form.store.trim()) return
+    const unitPrice = paidToUnitPrice(form.price, form.quantity)
+    if (!unitPrice || !form.store.trim()) return
+    const qty = parseFloat(String(form.quantity).replace(',', '.')) || 1
 
     addRecord({
       productId: product.id,
       householdId,
-      price,
-      quantity,
+      price: unitPrice,
+      quantity: qty,
       store: form.store.trim(),
       date: form.date,
     })
-    completeRegistration(product.id, quantity)
+    completeRegistration(product.id, Math.max(1, Math.round(qty)))
     setActiveFormId(null)
   }
 
   const handleManualSubmit = (e) => {
     e.preventDefault()
-    const quantity = parseInt(manualForm.quantity) || 0
-    const price = parseFloat(manualForm.price)
-    if (!manualForm.productId || quantity <= 0 || !price || price <= 0 || !manualForm.store.trim()) return
+    const unitPrice = paidToUnitPrice(manualForm.price, manualForm.quantity)
+    if (!manualForm.productId || !unitPrice || !manualForm.store.trim()) return
+    const qty = parseFloat(String(manualForm.quantity).replace(',', '.')) || 1
 
     addRecord({
       productId: manualForm.productId,
       householdId,
-      price,
-      quantity,
+      price: unitPrice,
+      quantity: qty,
       store: manualForm.store.trim(),
       date: manualForm.date,
     })
 
     const product = householdProducts.find((p) => p.id === manualForm.productId)
     if (product) {
-      updateProduct(product.id, { quantity: product.quantity + quantity })
+      updateProduct(product.id, {
+        quantity: product.quantity + Math.max(1, Math.round(qty)),
+      })
     }
 
     setManualForm({ productId: '', quantity: '1', price: '', store: '', date: new Date().toISOString().split('T')[0] })
@@ -196,6 +214,41 @@ function PendingTab({ householdId, products }) {
 
   const selectedManualProduct = householdProducts.find((p) => p.id === manualForm.productId)
   const manualUnit = selectedManualProduct ? ALL_UNITS_MAP[selectedManualProduct.displayUnit] : null
+
+  const allCategories = useCategoryStore((s) => s.categories)
+  const categoryMetaByName = useMemo(() => {
+    const map = new Map()
+    allCategories
+      .filter((c) => c.householdId === householdId)
+      .forEach((c) => map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' }))
+    return map
+  }, [allCategories, householdId])
+
+  const [pendingSearch, setPendingSearch] = useState('')
+  const filteredPending = useMemo(() => {
+    const q = pendingSearch.trim().toLowerCase()
+    if (!q) return products
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q),
+    )
+  }, [products, pendingSearch])
+
+  const pendingCategoryNames = useMemo(() => {
+    const counts = new Map()
+    for (const p of filteredPending) {
+      counts.set(p.category, (counts.get(p.category) || 0) + 1)
+    }
+    return [...counts.keys()].sort((a, b) => {
+      const diff = (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+      if (diff !== 0) return diff
+      return a.localeCompare(b)
+    })
+  }, [filteredPending])
+
+  const { toggleCategory: togglePendingCategory, isCategoryCollapsed: isPendingCategoryCollapsed } =
+    useCategoryAccordion(householdId, 'precios-pending')
 
   return (
     <div className="space-y-4">
@@ -239,7 +292,8 @@ function PendingTab({ householdId, products }) {
               <div className="flex items-center gap-1">
                 <input
                   type="number"
-                  min="1"
+                  min="0.001"
+                  step="any"
                   value={manualForm.quantity}
                   onChange={(e) => setManualForm({ ...manualForm, quantity: e.target.value })}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
@@ -250,7 +304,7 @@ function PendingTab({ householdId, products }) {
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">Precio pagado</label>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Total pagado (COP)</label>
               <input
                 type="number"
                 step="any"
@@ -322,15 +376,51 @@ function PendingTab({ householdId, products }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {products.map((product) => {
+        <>
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o categoría..."
+              value={pendingSearch}
+              onChange={(e) => setPendingSearch(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-9 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+            />
+          </div>
+          <div className="space-y-5 md:space-y-6">
+            {filteredPending.length === 0 && (
+              <p className="py-8 text-center text-sm text-slate-500">
+                Ningún producto coincide con la búsqueda.
+              </p>
+            )}
+            {pendingCategoryNames.map((category) => {
+              const categoryProducts = filteredPending
+                .filter((p) => p.category === category)
+                .sort((a, b) => a.name.localeCompare(b.name))
+              const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
+              const productAccent =
+                CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
+
+              return (
+                <CategorySection
+                  key={category}
+                  categoryName={category}
+                  productCount={categoryProducts.length}
+                  meta={meta}
+                  isCollapsed={isPendingCategoryCollapsed(category)}
+                  onToggle={() => togglePendingCategory(category)}
+                >
+                  {categoryProducts.map((product) => {
             const unit = ALL_UNITS_MAP[product.displayUnit]
             const isFormOpen = activeFormId === product.id
 
             return (
               <div
                 key={product.id}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                className={`overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-sm ${productAccent}`}
               >
                 <div className="flex items-center justify-between gap-3 px-3 py-3 md:px-5 md:py-4">
                   <div className="flex min-w-0 items-center gap-3">
@@ -338,16 +428,23 @@ function PendingTab({ householdId, products }) {
                       <ClipboardList size={16} className="text-indigo-500" />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                        {product.name}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {product.category}
-                        {unit && (
-                          <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                            {unit.label}
+                      <div className="flex min-w-0 flex-wrap items-center gap-1">
+                        <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
+                          {product.name}
+                        </span>
+                        {buildProductMetaChips(product).map((chip) => (
+                          <span
+                            key={`${product.id}:${chip.key}`}
+                            className={PRODUCT_META_CHIP_CLASS}
+                          >
+                            {chip.label}
                           </span>
-                        )}
+                        ))}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                          {productUnitSummaryLine(product)}
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -386,7 +483,8 @@ function PendingTab({ householdId, products }) {
                           <input
                             autoFocus
                             type="number"
-                            min="1"
+                            min="0.001"
+                            step="any"
                             value={form.quantity}
                             onChange={(e) =>
                               setForm({ ...form, quantity: e.target.value })
@@ -402,7 +500,7 @@ function PendingTab({ householdId, products }) {
                       </div>
                       <div>
                         <label className="mb-1 block text-xs font-medium text-slate-500">
-                          Precio pagado
+                          Total pagado (COP)
                         </label>
                         <input
                           type="number"
@@ -415,6 +513,9 @@ function PendingTab({ householdId, products }) {
                           }
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
                         />
+                        <p className="mt-0.5 text-[10px] text-slate-400">
+                          Guardamos precio por unidad (total ÷ cantidad)
+                        </p>
                       </div>
                       <div>
                         <label className="mb-1 block text-xs font-medium text-slate-500">
@@ -470,9 +571,13 @@ function PendingTab({ householdId, products }) {
                   </form>
                 )}
               </div>
-            )
-          })}
-        </div>
+                    )
+                  })}
+                </CategorySection>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
@@ -481,6 +586,7 @@ function PendingTab({ householdId, products }) {
 function HistoryTab({ householdId }) {
   const allProducts = useProductStore((s) => s.products)
   const allRecords = usePriceStore((s) => s.records)
+  const allCategories = useCategoryStore((s) => s.categories)
 
   const products = useMemo(
     () => allProducts.filter((p) => p.householdId === householdId),
@@ -510,7 +616,17 @@ function HistoryTab({ householdId }) {
       p.category.toLowerCase().includes(search.toLowerCase()),
   )
 
-  const categories = [...new Set(filtered.map((p) => p.category))].sort()
+  const historyCategoryNames = useMemo(() => {
+    const counts = new Map()
+    for (const p of filtered) {
+      counts.set(p.category, (counts.get(p.category) || 0) + 1)
+    }
+    return [...counts.keys()].sort((a, b) => {
+      const diff = (counts.get(b) ?? 0) - (counts.get(a) ?? 0)
+      if (diff !== 0) return diff
+      return a.localeCompare(b)
+    })
+  }, [filtered])
 
   const categoryMetaByName = useMemo(() => {
     const map = new Map()
@@ -519,6 +635,9 @@ function HistoryTab({ householdId }) {
       .forEach((c) => map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' }))
     return map
   }, [allCategories, householdId])
+
+  const { toggleCategory: toggleHistoryCategory, isCategoryCollapsed: isHistoryCategoryCollapsed } =
+    useCategoryAccordion(householdId, 'precios-history')
 
   const toggle = (id) => setExpandedId(expandedId === id ? null : id)
 
@@ -539,27 +658,24 @@ function HistoryTab({ householdId }) {
       </div>
 
       <div className="space-y-5 md:space-y-6">
-        {categories.map((category) => {
-          const categoryProducts = filtered.filter(
-            (p) => p.category === category,
-          )
+        {historyCategoryNames.map((category) => {
+          const categoryProducts = filtered
+            .filter((p) => p.category === category)
+            .sort((a, b) => a.name.localeCompare(b.name))
           const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
-          const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
+          const productAccent =
+            CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
+
           return (
-            <div key={category}>
-              <div className={`mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 md:mb-3 ${CATEGORY_COLOR_SURFACE_MAP[meta.color] || 'bg-slate-50/60 border-slate-200'}`}>
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/60">
-                  <Icon size={16} className="text-slate-600" />
-                </div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  {category}
-                  <span className="ml-2 rounded bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
-                    {categoryProducts.length}
-                  </span>
-                </h3>
-              </div>
-              <div className="space-y-2">
-                {categoryProducts.map((product) => {
+            <CategorySection
+              key={category}
+              categoryName={category}
+              productCount={categoryProducts.length}
+              meta={meta}
+              isCollapsed={isHistoryCategoryCollapsed(category)}
+              onToggle={() => toggleHistoryCategory(category)}
+            >
+              {categoryProducts.map((product) => {
                   const records = recordsByProduct[product.id] || []
                   const isExpanded = expandedId === product.id
                   const latest = records[0]
@@ -577,24 +693,32 @@ function HistoryTab({ householdId }) {
                   return (
                     <div
                       key={product.id}
-                      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                      className={`overflow-hidden rounded-xl border border-slate-200/90 bg-white/95 shadow-sm ${productAccent}`}
                     >
                       <button
                         onClick={() => toggle(product.id)}
                         className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-50 md:px-5 md:py-4"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                            {product.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {unit && (
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                                {unit.label}
+                          <div className="flex min-w-0 flex-wrap items-center gap-1">
+                            <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
+                              {product.name}
+                            </span>
+                            {buildProductMetaChips(product).map((chip) => (
+                              <span
+                                key={`${product.id}:${chip.key}`}
+                                className={PRODUCT_META_CHIP_CLASS}
+                              >
+                                {chip.label}
                               </span>
-                            )}
+                            ))}
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                              {productUnitSummaryLine(product)}
+                            </span>
                             <span className="ml-1.5 text-slate-400">
-                              {records.length}{' '}
+                              · {records.length}{' '}
                               {records.length === 1 ? 'registro' : 'registros'}
                             </span>
                           </p>
@@ -604,6 +728,12 @@ function HistoryTab({ householdId }) {
                             <div className="text-right">
                               <p className="text-sm font-semibold text-slate-900">
                                 {formatPrice(latest.price)}
+                                {unit && (
+                                  <span className="font-normal text-slate-500">
+                                    {' '}
+                                    / {unit.abbreviation}
+                                  </span>
+                                )}
                               </p>
                               <div className="flex items-center justify-end gap-1 text-xs">
                                 {trend === 'up' && (
@@ -649,8 +779,7 @@ function HistoryTab({ householdId }) {
                     </div>
                   )
                 })}
-              </div>
-            </div>
+            </CategorySection>
           )
         })}
 
@@ -666,8 +795,18 @@ function HistoryTab({ householdId }) {
   )
 }
 
+function lineTotalPaid(record) {
+  const p = Number(record.price)
+  const q = Number(record.quantity ?? 1)
+  if (!Number.isFinite(p) || !Number.isFinite(q)) return ''
+  const t = p * q
+  const rounded = Math.round(t * 100) / 100
+  return String(rounded % 1 === 0 ? Math.round(rounded) : rounded)
+}
+
 function ExpandedHistory({ product, records, householdId }) {
   const addRecord = usePriceStore((s) => s.addRecord)
+  const updateRecord = usePriceStore((s) => s.updateRecord)
   const deleteRecord = usePriceStore((s) => s.deleteRecord)
 
   const [showForm, setShowForm] = useState(false)
@@ -678,16 +817,54 @@ function ExpandedHistory({ product, records, householdId }) {
     date: new Date().toISOString().split('T')[0],
   })
 
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({
+    quantity: '1',
+    price: '',
+    store: '',
+    date: '',
+  })
+
+  const startEdit = (record) => {
+    setShowForm(false)
+    setEditingId(record.id)
+    setEditForm({
+      quantity: String(record.quantity ?? 1),
+      price: lineTotalPaid(record),
+      store: record.store,
+      date: record.date,
+    })
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+  }
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault()
+    if (!editingId) return
+    const unitPrice = paidToUnitPrice(editForm.price, editForm.quantity)
+    if (!unitPrice || !editForm.store.trim()) return
+    const qty = parseFloat(String(editForm.quantity).replace(',', '.')) || 1
+    updateRecord(editingId, {
+      price: unitPrice,
+      quantity: qty,
+      store: editForm.store.trim(),
+      date: editForm.date,
+    })
+    setEditingId(null)
+  }
+
   const handleAdd = (e) => {
     e.preventDefault()
-    const price = parseFloat(form.price)
-    const quantity = parseInt(form.quantity) || 1
-    if (!price || price <= 0 || !form.store.trim()) return
+    const unitPrice = paidToUnitPrice(form.price, form.quantity)
+    if (!unitPrice || !form.store.trim()) return
+    const qty = parseFloat(String(form.quantity).replace(',', '.')) || 1
     addRecord({
       productId: product.id,
       householdId,
-      price,
-      quantity,
+      price: unitPrice,
+      quantity: qty,
       store: form.store.trim(),
       date: form.date,
     })
@@ -719,6 +896,10 @@ function ExpandedHistory({ product, records, householdId }) {
     <div className="border-t border-slate-100 bg-slate-50/50 px-3 pb-4 md:px-5">
       {stats && (
         <div className="grid grid-cols-2 gap-2 py-3 sm:grid-cols-4 md:py-4">
+          <p className="col-span-full -mb-1 text-center text-[10px] text-slate-400">
+            Precio por unidad (
+            {ALL_UNITS_MAP[product.displayUnit]?.abbreviation || product.displayUnit})
+          </p>
           <div className="rounded-lg bg-white px-3 py-2 text-center shadow-sm">
             <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
               Mínimo
@@ -759,7 +940,10 @@ function ExpandedHistory({ product, records, householdId }) {
           Registros
         </p>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setEditingId(null)
+            setShowForm(!showForm)
+          }}
           className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
         >
           <Plus size={12} />
@@ -775,7 +959,8 @@ function ExpandedHistory({ product, records, householdId }) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             <input
               type="number"
-              min="1"
+              min="0.001"
+              step="any"
               placeholder="Cant."
               value={form.quantity}
               onChange={(e) => setForm({ ...form, quantity: e.target.value })}
@@ -785,7 +970,7 @@ function ExpandedHistory({ product, records, householdId }) {
               type="number"
               step="any"
               min="0"
-              placeholder="Precio"
+              placeholder="Total COP"
               value={form.price}
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
@@ -829,30 +1014,154 @@ function ExpandedHistory({ product, records, householdId }) {
         </p>
       ) : (
         <div className="space-y-1.5">
-          {records.map((record) => (
-            <div
-              key={record.id}
-              className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2.5 shadow-sm"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">
-                  {formatPrice(record.price)}
-                </p>
-                <p className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <MapPin size={11} className="shrink-0" />
-                  <span className="truncate">{record.store}</span>
-                  <span className="text-slate-300">·</span>
-                  {formatDate(record.date)}
-                </p>
-              </div>
-              <button
-                onClick={() => deleteRecord(record.id)}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+          {records.map((record) => {
+            const isEditing = editingId === record.id
+            const unit = ALL_UNITS_MAP[product.displayUnit]
+
+            if (isEditing) {
+              return (
+                <form
+                  key={record.id}
+                  onSubmit={handleEditSubmit}
+                  className="rounded-lg border border-indigo-200 bg-white p-3 shadow-sm"
+                >
+                  <p className="mb-2 text-xs font-medium text-slate-600">Editar registro</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                    <div>
+                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+                        Cantidad
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          value={editForm.quantity}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, quantity: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                        />
+                        {unit && (
+                          <span className="shrink-0 text-xs text-slate-400">{unit.abbreviation}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+                        Total pagado (COP)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        value={editForm.price}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, price: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+                        Lugar
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.store}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, store: e.target.value })
+                        }
+                        list={`stores-hist-${product.id}`}
+                        className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+                        Fecha
+                      </label>
+                      <input
+                        type="date"
+                        value={editForm.date}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, date: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex items-end gap-2 lg:col-span-1">
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-[10px] text-slate-400">
+                    Precio por unidad = total ÷ cantidad (igual que al registrar)
+                  </p>
+                </form>
+              )
+            }
+
+            return (
+              <div
+                key={record.id}
+                className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2.5 shadow-sm"
               >
-                <Trash2 size={13} />
-              </button>
-            </div>
-          ))}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatPrice(record.price)}
+                    {unit && (
+                      <span className="font-normal text-slate-500">
+                        {' '}
+                        / {unit.abbreviation}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Compra: {Number(record.quantity)}{' '}
+                    {unit?.abbreviation || ''} · Total {formatPrice(record.price * record.quantity)}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <MapPin size={11} className="shrink-0" />
+                    <span className="truncate">{record.store}</span>
+                    <span className="text-slate-300">·</span>
+                    {formatDate(record.date)}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(record)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
+                    title="Editar"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editingId === record.id) setEditingId(null)
+                      deleteRecord(record.id)
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

@@ -34,3 +34,27 @@ export function formatProductUnit(product) {
   }
   return du.label
 }
+
+/**
+ * Etiqueta del bloque "cantidad + unidad del contenido" cuando se vende por empaque.
+ * P. ej. paquete → unidad(es) por paquete; botella → contenido por botella.
+ */
+export function packageContentRowLabel(displayUnitId) {
+  switch (displayUnitId) {
+    case 'pack':
+      return 'Unidad(es) por paquete'
+    case 'box':
+      return 'Unidad(es) por caja'
+    case 'bag':
+      return 'Contenido por bolsa'
+    case 'dozen':
+      return 'Unidades por docena'
+    case 'roll':
+      return 'Contenido por rollo'
+    default: {
+      const du = ALL_UNITS_MAP[displayUnitId]
+      if (!du) return 'Contenido por empaque'
+      return `Contenido por ${du.label.toLowerCase()}`
+    }
+  }
+}

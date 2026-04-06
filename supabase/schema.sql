@@ -22,6 +22,8 @@ create table public.categories (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
   name text not null,
+  icon text not null default 'tag',
+  color text not null default 'indigo',
   created_at timestamptz not null default now(),
   unique (household_id, name)
 );
@@ -51,7 +53,7 @@ create table public.price_records (
   product_id uuid not null references public.products(id) on delete cascade,
   household_id uuid not null references public.households(id) on delete cascade,
   price numeric(12,2) not null,
-  quantity integer not null default 1,
+  quantity numeric(12,4) not null default 1,
   store text not null default '',
   recorded_date date not null default current_date,
   created_at timestamptz not null default now()
