@@ -98,6 +98,19 @@ export default function Inventario() {
     setShowForm(false)
   }
 
+  const metaChips = (product) => {
+    const chips = []
+    if (product.brand) chips.push({ key: 'brand', label: product.brand })
+    if (product.contentAmount && product.contentUnit) {
+      const cu = ALL_UNITS_MAP[product.contentUnit]
+      chips.push({
+        key: 'content',
+        label: `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`,
+      })
+    }
+    return chips
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between md:mb-6">
@@ -317,80 +330,84 @@ export default function Inventario() {
                         return (
                           <div
                             key={product.id}
-                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-5 md:py-4"
+                            className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4"
                           >
-                      <div className="flex min-w-0 items-center gap-3 md:gap-4">
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="h-10 w-10 shrink-0 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                            <Package size={18} className="text-slate-400" />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                            {product.name}
-                            {product.brand && (
-                              <span className="ml-1 font-normal text-slate-400">
-                                · {product.brand}
+                            <div className="flex min-w-0 items-center gap-3 md:gap-4">
+                              {product.imageUrl ? (
+                                <img
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  className="h-10 w-10 shrink-0 rounded-lg object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                                  <Package size={18} className="text-slate-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-900 md:text-base">
+                                  {product.name}
+                                  {metaChips(product).map((chip) => (
+                                    <span
+                                      key={`${product.id}:${chip.key}`}
+                                      className="ml-1 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                                    >
+                                      {chip.label}
+                                    </span>
+                                  ))}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                                    {formatProductUnit(product)}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto md:gap-3">
+                              <button
+                                onClick={() => decrement(product.id)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
+                              >
+                                <Minus size={14} />
+                              </button>
+                              <span
+                                className={`min-w-[2.5rem] text-center text-sm font-semibold ${
+                                  product.quantity === 0
+                                    ? 'text-red-500'
+                                    : 'text-slate-900'
+                                }`}
+                              >
+                                {product.quantity}
+                                {unit && (
+                                  <span className="ml-0.5 text-xs font-normal text-slate-400">
+                                    {unit.abbreviation}
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                              {formatProductUnit(product)}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2 md:gap-3">
-                        <button
-                          onClick={() => decrement(product.id)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100"
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span
-                          className={`min-w-[2.5rem] text-center text-sm font-semibold ${
-                            product.quantity === 0
-                              ? 'text-red-500'
-                              : 'text-slate-900'
-                          }`}
-                        >
-                          {product.quantity}
-                          {unit && (
-                            <span className="ml-0.5 text-xs font-normal text-slate-400">
-                              {unit.abbreviation}
-                            </span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => increment(product.id)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
-                        >
-                          <Plus size={14} />
-                        </button>
-                        <button
-                          onClick={() => toggleShoppingList(product.id)}
-                          title={
-                            product.inShoppingList
-                              ? 'Quitar de la lista de compras'
-                              : 'Agregar a la lista de compras'
-                          }
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-                            product.inShoppingList
-                              ? 'border-amber-300 bg-amber-50 text-amber-600'
-                              : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
-                          }`}
-                        >
-                          <ShoppingCart size={14} />
-                        </button>
-                      </div>
-                    </div>
+                              <button
+                                onClick={() => increment(product.id)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100"
+                              >
+                                <Plus size={14} />
+                              </button>
+                              <button
+                                onClick={() => toggleShoppingList(product.id)}
+                                title={
+                                  product.inShoppingList
+                                    ? 'Quitar de la lista de compras'
+                                    : 'Agregar a la lista de compras'
+                                }
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                                  product.inShoppingList
+                                    ? 'border-amber-300 bg-amber-50 text-amber-600'
+                                    : 'border-slate-200 text-slate-300 hover:border-slate-300 hover:text-slate-400'
+                                }`}
+                              >
+                                <ShoppingCart size={14} />
+                              </button>
+                            </div>
+                          </div>
                         )
                       })}
                     </div>

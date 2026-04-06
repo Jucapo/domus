@@ -20,6 +20,19 @@ export default function PorComprar() {
     [allProducts, householdId],
   )
 
+  const metaChips = (product) => {
+    const chips = []
+    if (product.brand) chips.push({ key: 'brand', label: product.brand })
+    if (product.contentAmount && product.contentUnit) {
+      const cu = ALL_UNITS_MAP[product.contentUnit]
+      chips.push({
+        key: 'content',
+        label: `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`,
+      })
+    }
+    return chips
+  }
+
   return (
     <div>
       <div className="mb-4 md:mb-6">
@@ -60,6 +73,14 @@ export default function PorComprar() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-900 md:text-base">
                       {product.name}
+                      {metaChips(product).map((chip) => (
+                        <span
+                          key={`${product.id}:${chip.key}`}
+                          className="ml-1 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                        >
+                          {chip.label}
+                        </span>
+                      ))}
                     </p>
                     <p className="text-xs text-slate-500">
                       {product.category}
