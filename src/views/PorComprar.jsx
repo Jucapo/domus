@@ -3,10 +3,13 @@ import { ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { ALL_UNITS_MAP } from '../data/units'
+import { useCategoryStore } from '../store/useCategoryStore'
+import { CATEGORY_ICON_MAP, CATEGORY_COLOR_MAP } from '../data/category_styles'
 
 export default function PorComprar() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
   const allProducts = useProductStore((s) => s.products)
+  const allCategories = useCategoryStore((s) => s.categories)
   const markAsBought = useProductStore((s) => s.markAsBought)
   const removeFromShoppingList = useProductStore(
     (s) => s.removeFromShoppingList,
@@ -19,6 +22,14 @@ export default function PorComprar() {
       ),
     [allProducts, householdId],
   )
+
+  const categoryMetaByName = useMemo(() => {
+    const map = new Map()
+    allCategories
+      .filter((c) => c.householdId === householdId)
+      .forEach((c) => map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' }))
+    return map
+  }, [allCategories, householdId])
 
   const metaChips = (product) => {
     const chips = []
@@ -71,19 +82,31 @@ export default function PorComprar() {
                     <ShoppingCart size={18} className="hidden text-amber-500 md:block" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                      {product.name}
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+                      <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
+                        {product.name}
+                      </span>
                       {metaChips(product).map((chip) => (
                         <span
                           key={`${product.id}:${chip.key}`}
-                          className="ml-1 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                          className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
                         >
                           {chip.label}
                         </span>
                       ))}
-                    </p>
+                    </div>
                     <p className="text-xs text-slate-500">
-                      {product.category}
+                      {(() => {
+                        const meta = categoryMetaByName.get(product.category)
+                        if (!meta) return product.category
+                        const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
+                        return (
+                          <span className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_COLOR_MAP[meta.color] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                            <Icon size={12} />
+                            {product.category}
+                          </span>
+                        )
+                      })()}
                       {unit && (
                         <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
                           {unit.label}

@@ -16,7 +16,9 @@ import {
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
+import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS_MAP } from '../data/units'
+import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
 
 function formatPrice(price) {
   return new Intl.NumberFormat('es-CO', {
@@ -42,6 +44,7 @@ const TABS = [
 export default function Precios() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
   const allProducts = useProductStore((s) => s.products)
+  const allCategories = useCategoryStore((s) => s.categories)
 
   const pendingProducts = useMemo(
     () =>
@@ -509,6 +512,14 @@ function HistoryTab({ householdId }) {
 
   const categories = [...new Set(filtered.map((p) => p.category))].sort()
 
+  const categoryMetaByName = useMemo(() => {
+    const map = new Map()
+    allCategories
+      .filter((c) => c.householdId === householdId)
+      .forEach((c) => map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' }))
+    return map
+  }, [allCategories, householdId])
+
   const toggle = (id) => setExpandedId(expandedId === id ? null : id)
 
   return (
@@ -532,11 +543,21 @@ function HistoryTab({ householdId }) {
           const categoryProducts = filtered.filter(
             (p) => p.category === category,
           )
+          const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
+          const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
           return (
             <div key={category}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400 md:mb-3">
-                {category}
-              </h3>
+              <div className={`mb-2 flex items-center gap-2 rounded-xl border px-3 py-2 md:mb-3 ${CATEGORY_COLOR_SURFACE_MAP[meta.color] || 'bg-slate-50/60 border-slate-200'}`}>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/60">
+                  <Icon size={16} className="text-slate-600" />
+                </div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  {category}
+                  <span className="ml-2 rounded bg-white/60 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
+                    {categoryProducts.length}
+                  </span>
+                </h3>
+              </div>
               <div className="space-y-2">
                 {categoryProducts.map((product) => {
                   const records = recordsByProduct[product.id] || []

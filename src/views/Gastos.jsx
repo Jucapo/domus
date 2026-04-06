@@ -10,7 +10,9 @@ import {
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
+import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS_MAP } from '../data/units'
+import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
 
 const MONTH_ABBR = [
   'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
@@ -68,6 +70,7 @@ export default function Gastos() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
   const allProducts = useProductStore((s) => s.products)
   const allRecords = usePriceStore((s) => s.records)
+  const allCategories = useCategoryStore((s) => s.categories)
 
   const products = useMemo(
     () => allProducts.filter((p) => p.householdId === householdId),
@@ -112,6 +115,14 @@ export default function Gastos() {
     products.forEach((p) => { map[p.id] = p })
     return map
   }, [products])
+
+  const categoryMetaById = useMemo(() => {
+    const map = new Map()
+    allCategories
+      .filter((c) => c.householdId === householdId)
+      .forEach((c) => map.set(c.id, { icon: c.icon || 'tag', color: c.color || 'indigo', name: c.name }))
+    return map
+  }, [allCategories, householdId])
 
   const { categoryData, grandTotal } = useMemo(() => {
     const catMap = {}
@@ -224,20 +235,26 @@ export default function Gastos() {
           {categoryData.map((cat) => {
             const isExpanded = expandedCategories.has(cat.id)
             const percentage = grandTotal > 0 ? Math.round((cat.total / grandTotal) * 100) : 0
+            const meta = categoryMetaById.get(cat.id) || { icon: 'tag', color: 'slate' }
+            const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
 
             return (
               <div
                 key={cat.id}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                className={`overflow-hidden rounded-xl border shadow-sm ${CATEGORY_COLOR_SURFACE_MAP[meta.color] || 'bg-slate-50/60 border-slate-200'}`}
               >
                 <button
                   onClick={() => toggleCategory(cat.id)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 md:px-5"
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition-colors hover:bg-white/30 md:px-5"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {cat.name}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-2">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/60">
+                      <Icon size={16} className="text-slate-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {cat.name}
+                      </p>
                     <div className="mt-1 flex items-center gap-2">
                       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100 md:w-28">
                         <div
@@ -246,6 +263,7 @@ export default function Gastos() {
                         />
                       </div>
                       <span className="text-xs text-slate-400">{percentage}%</span>
+                    </div>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">

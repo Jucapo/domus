@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
+import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
 
 export default function Inventario() {
   const navigate = useNavigate()
@@ -24,6 +25,14 @@ export default function Inventario() {
         .sort((a, b) => a.name.localeCompare(b.name)),
     [allCategories, householdId],
   )
+
+  const categoryMetaByName = useMemo(() => {
+    const map = new Map()
+    householdCategories.forEach((c) => {
+      map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' })
+    })
+    return map
+  }, [householdCategories])
 
   const products = useMemo(
     () => allProducts.filter((p) => p.householdId === householdId && p.visibleInInventory !== false),
@@ -109,6 +118,14 @@ export default function Inventario() {
       })
     }
     return chips
+  }
+
+  const unitSummary = (product) => {
+    const du = ALL_UNITS_MAP[product.displayUnit]
+    if (!du) return ''
+    // Si ya mostramos el contenido como chip (p.ej. 3000ml), no lo repetimos en la segunda línea.
+    if (product.contentAmount && product.contentUnit) return du.label
+    return formatProductUnit(product)
   }
 
   return (
@@ -295,6 +312,8 @@ export default function Inventario() {
             {(() => {
               const categoryProducts = filtered.filter((p) => p.category === category)
               const isCollapsed = !isSearching && collapsedCategories.has(category)
+              const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
+              const Icon = CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag
 
               return (
                 <>
@@ -308,9 +327,12 @@ export default function Inventario() {
                         return next
                       })
                     }}
-                    className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg px-1 text-left md:mb-3"
+                    className={`mb-2 flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left md:mb-3 ${CATEGORY_COLOR_SURFACE_MAP[meta.color] || 'bg-slate-50/60 border-slate-200'}`}
                   >
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/60">
+                        <Icon size={16} className="text-slate-600" />
+                      </div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                         {category}
                         <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">
@@ -345,20 +367,22 @@ export default function Inventario() {
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-slate-900 md:text-base">
-                                  {product.name}
+                                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                                  <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
+                                    {product.name}
+                                  </span>
                                   {metaChips(product).map((chip) => (
                                     <span
                                       key={`${product.id}:${chip.key}`}
-                                      className="ml-1 inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                                      className="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50/70 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
                                     >
                                       {chip.label}
                                     </span>
                                   ))}
-                                </p>
-                                <p className="text-xs text-slate-500">
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">
                                   <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                                    {formatProductUnit(product)}
+                                    {unitSummary(product)}
                                   </span>
                                 </p>
                               </div>

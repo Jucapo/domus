@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
+import { CATEGORY_ICON_MAP, CATEGORY_COLOR_MAP } from '../data/category_styles'
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -34,6 +35,12 @@ export default function GestionProductos() {
     () => allCategories.filter((c) => c.householdId === householdId),
     [allCategories, householdId],
   )
+
+  const categoryMetaByName = useMemo(() => {
+    const map = new Map()
+    categories.forEach((c) => map.set(c.name, { icon: c.icon || 'tag', color: c.color || 'indigo' }))
+    return map
+  }, [categories])
 
   const products = useMemo(
     () => allProducts.filter((p) => p.householdId === householdId),
@@ -211,6 +218,7 @@ export default function GestionProductos() {
             <ProductCard
               key={product.id}
               product={product}
+              categoryMetaByName={categoryMetaByName}
               onEdit={() => startEdit(product)}
               onDelete={() => handleDelete(product)}
               onToggleVisibility={() =>
@@ -230,9 +238,11 @@ export default function GestionProductos() {
   )
 }
 
-function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
+function ProductCard({ product, onEdit, onDelete, onToggleVisibility, categoryMetaByName }) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
   const hasExtras = product.brand || product.notes
+  const meta = categoryMetaByName?.get(product.category) || null
+  const CatIcon = meta ? (CATEGORY_ICON_MAP[meta.icon] || CATEGORY_ICON_MAP.tag) : null
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm md:px-4 md:py-3">
@@ -259,7 +269,18 @@ function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
               )}
             </p>
             <p className="text-xs text-slate-500">
-              {product.category}
+              {meta ? (
+                <span
+                  className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${
+                    CATEGORY_COLOR_MAP[meta.color] || 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  {CatIcon ? <CatIcon size={12} /> : null}
+                  {product.category}
+                </span>
+              ) : (
+                product.category
+              )}
               <span className="mx-1.5 text-slate-300">·</span>
               {formatProductUnit(product)}
               <span className="mx-1.5 text-slate-300">·</span>
