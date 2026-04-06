@@ -118,10 +118,10 @@ export default function Precios() {
 function PendingTab({ householdId, products }) {
   const allProducts = useProductStore((s) => s.products)
   const completeRegistration = useProductStore((s) => s.completeRegistration)
+  const addInventoryFromPurchase = useProductStore((s) => s.addInventoryFromPurchase)
   const skipRegistration = useProductStore((s) => s.skipRegistration)
   const addRecord = usePriceStore((s) => s.addRecord)
   const allRecords = usePriceStore((s) => s.records)
-  const updateProduct = useProductStore((s) => s.updateProduct)
 
   const householdProducts = useMemo(
     () =>
@@ -186,7 +186,7 @@ function PendingTab({ householdId, products }) {
     setActiveFormId(null)
   }
 
-  const handleManualSubmit = (e) => {
+  const handleManualSubmit = async (e) => {
     e.preventDefault()
     const unitPrice = paidToUnitPrice(manualForm.price, manualForm.quantity)
     if (!manualForm.productId || !unitPrice || !manualForm.store.trim()) return
@@ -201,12 +201,7 @@ function PendingTab({ householdId, products }) {
       date: manualForm.date,
     })
 
-    const product = householdProducts.find((p) => p.id === manualForm.productId)
-    if (product) {
-      updateProduct(product.id, {
-        quantity: product.quantity + Math.max(1, Math.round(qty)),
-      })
-    }
+    await addInventoryFromPurchase(manualForm.productId, qty)
 
     setManualForm({ productId: '', quantity: '1', price: '', store: '', date: new Date().toISOString().split('T')[0] })
     setShowManualForm(false)

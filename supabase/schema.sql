@@ -44,6 +44,8 @@ create table public.products (
   brand text not null default '',
   image_url text not null default '',
   notes text not null default '',
+  linked_product_id uuid references public.products(id) on delete set null,
+  linked_units_per_package numeric(12,4),
   created_at timestamptz not null default now()
 );
 
@@ -63,6 +65,7 @@ create table public.price_records (
 create index idx_categories_household on public.categories(household_id);
 create index idx_products_household on public.products(household_id);
 create index idx_products_category on public.products(category_id);
+create index idx_products_linked_product on public.products(linked_product_id);
 create index idx_price_records_product on public.price_records(product_id);
 create index idx_price_records_household on public.price_records(household_id);
 

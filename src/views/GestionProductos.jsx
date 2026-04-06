@@ -72,6 +72,8 @@ export default function GestionProductos() {
     contentUnit: '',
     imageUrl: '',
     notes: '',
+    linkedProductId: '',
+    linkedUnitsPerPackage: '',
   })
 
   const [editingId, setEditingId] = useState(null)
@@ -84,6 +86,8 @@ export default function GestionProductos() {
     contentUnit: '',
     imageUrl: '',
     notes: '',
+    linkedProductId: '',
+    linkedUnitsPerPackage: '',
   })
   const [search, setSearch] = useState('')
 
@@ -111,6 +115,15 @@ export default function GestionProductos() {
     'gestion-productos',
   )
 
+  /** Productos que pueden ser "base" de stock (no son empaques ya anclados a otro) */
+  const anchorCandidates = useMemo(
+    () =>
+      products
+        .filter((p) => !p.linkedProductId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [products],
+  )
+
   const startEdit = (product) => {
     setEditingId(product.id)
     setEditForm({
@@ -122,6 +135,9 @@ export default function GestionProductos() {
       contentUnit: product.contentUnit || '',
       imageUrl: product.imageUrl || '',
       notes: product.notes || '',
+      linkedProductId: product.linkedProductId || '',
+      linkedUnitsPerPackage:
+        product.linkedUnitsPerPackage != null ? String(product.linkedUnitsPerPackage) : '',
     })
   }
 
@@ -130,6 +146,10 @@ export default function GestionProductos() {
     if (!trimmed) {
       setEditingId(null)
       return
+    }
+    if (isPackageUnit(editForm.displayUnit) && editForm.linkedProductId) {
+      const n = parseFloat(String(editForm.linkedUnitsPerPackage).replace(',', '.'))
+      if (!Number.isFinite(n) || n <= 0) return
     }
     updateProduct(productId, {
       name: trimmed,
@@ -140,6 +160,14 @@ export default function GestionProductos() {
       contentUnit: editForm.contentUnit || null,
       imageUrl: editForm.imageUrl.trim(),
       notes: editForm.notes.trim(),
+      linkedProductId:
+        isPackageUnit(editForm.displayUnit) && editForm.linkedProductId
+          ? editForm.linkedProductId
+          : null,
+      linkedUnitsPerPackage:
+        isPackageUnit(editForm.displayUnit) && editForm.linkedProductId
+          ? parseFloat(String(editForm.linkedUnitsPerPackage).replace(',', '.'))
+          : null,
     })
     setEditingId(null)
   }
@@ -147,6 +175,10 @@ export default function GestionProductos() {
   const handleCreate = async () => {
     const trimmed = createForm.name.trim()
     if (!trimmed || !createForm.categoryId) return
+    if (isPackageUnit(createForm.displayUnit) && createForm.linkedProductId) {
+      const n = parseFloat(String(createForm.linkedUnitsPerPackage).replace(',', '.'))
+      if (!Number.isFinite(n) || n <= 0) return
+    }
     await addProduct({
       householdId,
       name: trimmed,
@@ -158,8 +190,28 @@ export default function GestionProductos() {
       contentUnit: createForm.contentUnit || null,
       imageUrl: createForm.imageUrl.trim(),
       notes: createForm.notes.trim(),
+      linkedProductId:
+        isPackageUnit(createForm.displayUnit) && createForm.linkedProductId
+          ? createForm.linkedProductId
+          : null,
+      linkedUnitsPerPackage:
+        isPackageUnit(createForm.displayUnit) && createForm.linkedProductId
+          ? parseFloat(String(createForm.linkedUnitsPerPackage).replace(',', '.'))
+          : null,
     })
-    setCreateForm({ name: '', categoryId: '', quantity: 0, displayUnit: 'unit', brand: '', contentAmount: '', contentUnit: '', imageUrl: '', notes: '' })
+    setCreateForm({
+      name: '',
+      categoryId: '',
+      quantity: 0,
+      displayUnit: 'unit',
+      brand: '',
+      contentAmount: '',
+      contentUnit: '',
+      imageUrl: '',
+      notes: '',
+      linkedProductId: '',
+      linkedUnitsPerPackage: '',
+    })
     setShowCreateForm(false)
   }
 
@@ -205,6 +257,7 @@ export default function GestionProductos() {
             form={createForm}
             setForm={setCreateForm}
             categories={categories}
+            anchorCandidates={anchorCandidates}
             onConfirm={handleCreate}
             onCancel={() => setShowCreateForm(false)}
             navigate={navigate}
@@ -255,6 +308,7 @@ export default function GestionProductos() {
                       form={editForm}
                       setForm={setEditForm}
                       categories={categories}
+                      anchorCandidates={anchorCandidates}
                       onConfirm={() => confirmEdit(product.id)}
                       onCancel={() => setEditingId(null)}
                       navigate={navigate}
@@ -266,6 +320,11 @@ export default function GestionProductos() {
                   <ProductCard
                     key={product.id}
                     product={product}
+                    linkedProductName={
+                      product.linkedProductId
+                        ? products.find((x) => x.id === product.linkedProductId)?.name
+                        : null
+                    }
                     accentClass={productAccent}
                     onEdit={() => startEdit(product)}
                     onDelete={() => handleDelete(product)}
@@ -293,6 +352,7 @@ export default function GestionProductos() {
 
 function ProductCard({
   product,
+  linkedProductName,
   onEdit,
   onDelete,
   onToggleVisibility,
@@ -342,6 +402,12 @@ function ProductCard({
                 )}
               </span>
             </p>
+            {linkedProductName && product.linkedUnitsPerPackage > 0 && (
+              <p className="mt-0.5 text-[10px] text-indigo-600">
+                Compras: +{product.linkedUnitsPerPackage} en «{linkedProductName}» por cada{' '}
+                {unit?.abbreviation || 'ud'} registrada
+              </p>
+            )}
             {product.notes && (
               <p className="mt-0.5 truncate text-xs text-slate-400 italic">
                 {product.notes}
@@ -379,7 +445,70 @@ function ProductCard({
   )
 }
 
-function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }) {
+function LinkedStockFields({ form, setForm, anchorCandidates, excludeProductId }) {
+  const candidates = excludeProductId
+    ? anchorCandidates.filter((c) => c.id !== excludeProductId)
+    : anchorCandidates
+  const packLabel = ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none'
+
+  return (
+    <div className="mt-3 rounded-lg border border-indigo-100 bg-white/80 p-3">
+      <p className="text-xs font-medium text-slate-700">Inventario unificado (opcional)</p>
+      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+        Elige el producto en el que quieres ver el stock (p. ej. arroz por libra). Al registrar una
+        compra de este {packLabel}, se sumará la cantidad indicada allí y no al stock de este
+        empaque.
+      </p>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div>
+          <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+            Producto base
+          </label>
+          <select
+            value={form.linkedProductId}
+            onChange={(e) => {
+              const v = e.target.value
+              setForm({
+                ...form,
+                linkedProductId: v,
+                ...(v ? {} : { linkedUnitsPerPackage: '' }),
+              })
+            }}
+            className={inputClass}
+          >
+            <option value="">Ninguno — stock solo aquí</option>
+            {candidates.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.category ? ` (${p.category})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        {form.linkedProductId ? (
+          <div>
+            <label className="mb-0.5 block text-[10px] font-medium text-slate-500">
+              Unidades del producto base por 1 {packLabel}
+            </label>
+            <input
+              type="number"
+              min="0.001"
+              step="any"
+              placeholder="Ej: 25"
+              value={form.linkedUnitsPerPackage}
+              onChange={(e) => setForm({ ...form, linkedUnitsPerPackage: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function CreateForm({ form, setForm, categories, anchorCandidates, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(false)
 
   const inputClass =
@@ -432,11 +561,14 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
             value={form.displayUnit}
             onChange={(e) => {
               const val = e.target.value
+              const stillPack = isPackageUnit(val)
               setForm({
                 ...form,
                 displayUnit: val,
-                contentAmount: isPackageUnit(val) ? form.contentAmount : '',
-                contentUnit: isPackageUnit(val) ? form.contentUnit : '',
+                contentAmount: stillPack ? form.contentAmount : '',
+                contentUnit: stillPack ? form.contentUnit : '',
+                linkedProductId: stillPack ? form.linkedProductId : '',
+                linkedUnitsPerPackage: stillPack ? form.linkedUnitsPerPackage : '',
               })
             }}
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
@@ -456,6 +588,7 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
       </div>
 
       {isPackageUnit(form.displayUnit) && (
+        <>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
             {packageContentRowLabel(form.displayUnit)}:
@@ -480,6 +613,12 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
             ))}
           </select>
         </div>
+        <LinkedStockFields
+          form={form}
+          setForm={setForm}
+          anchorCandidates={anchorCandidates}
+        />
+        </>
       )}
 
       <button
@@ -525,9 +664,9 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
   )
 }
 
-function EditForm({ product, form, setForm, categories, onConfirm, onCancel, navigate }) {
+function EditForm({ product, form, setForm, categories, anchorCandidates, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(
-    Boolean(form.brand || form.imageUrl || form.notes),
+    Boolean(form.brand || form.imageUrl || form.notes || form.linkedProductId),
   )
 
   const inputClass =
@@ -578,11 +717,14 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
           value={form.displayUnit}
           onChange={(e) => {
             const val = e.target.value
+            const stillPack = isPackageUnit(val)
             setForm({
               ...form,
               displayUnit: val,
-              contentAmount: isPackageUnit(val) ? form.contentAmount : '',
-              contentUnit: isPackageUnit(val) ? form.contentUnit : '',
+              contentAmount: stillPack ? form.contentAmount : '',
+              contentUnit: stillPack ? form.contentUnit : '',
+              linkedProductId: stillPack ? form.linkedProductId : '',
+              linkedUnitsPerPackage: stillPack ? form.linkedUnitsPerPackage : '',
             })
           }}
           className={inputClass}
@@ -601,30 +743,38 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
       </div>
 
       {isPackageUnit(form.displayUnit) && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
-            {packageContentRowLabel(form.displayUnit)}:
-          </span>
-          <input
-            type="number"
-            step="any"
-            min="0"
-            placeholder="Cantidad"
-            value={form.contentAmount}
-            onChange={(e) => setForm({ ...form, contentAmount: e.target.value })}
-            className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+              {packageContentRowLabel(form.displayUnit)}:
+            </span>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              placeholder="Cantidad"
+              value={form.contentAmount}
+              onChange={(e) => setForm({ ...form, contentAmount: e.target.value })}
+              className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            />
+            <select
+              value={form.contentUnit}
+              onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+            >
+              <option value="">Seleccionar medida…</option>
+              {BASE_UNITS.map((u) => (
+                <option key={u.id} value={u.id}>{u.label}</option>
+              ))}
+            </select>
+          </div>
+          <LinkedStockFields
+            form={form}
+            setForm={setForm}
+            anchorCandidates={anchorCandidates}
+            excludeProductId={product.id}
           />
-          <select
-            value={form.contentUnit}
-            onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="">Seleccionar medida…</option>
-            {BASE_UNITS.map((u) => (
-              <option key={u.id} value={u.id}>{u.label}</option>
-            ))}
-          </select>
-        </div>
+        </>
       )}
 
       <button
