@@ -2,9 +2,7 @@ import { useMemo } from 'react'
 import { ShoppingCart, Check, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
-import { UNITS } from '../data/units'
-
-const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
+import { ALL_UNITS_MAP } from '../data/units'
 
 export default function PorComprar() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
@@ -48,7 +46,7 @@ export default function PorComprar() {
       ) : (
         <div className="space-y-2">
           {products.map((product) => {
-            const unit = unitMap[product.unit]
+            const unit = ALL_UNITS_MAP[product.displayUnit]
             return (
               <div
                 key={product.id}

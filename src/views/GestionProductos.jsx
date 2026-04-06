@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { UNITS } from '../data/units'
+import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
 
 export default function GestionProductos() {
   const navigate = useNavigate()
@@ -44,9 +44,10 @@ export default function GestionProductos() {
     name: '',
     categoryId: '',
     quantity: 0,
-    unit: 'unit',
+    displayUnit: 'unit',
     brand: '',
-    packageSize: '',
+    contentAmount: '',
+    contentUnit: '',
     imageUrl: '',
     notes: '',
   })
@@ -55,9 +56,10 @@ export default function GestionProductos() {
   const [editForm, setEditForm] = useState({
     name: '',
     categoryId: '',
-    unit: 'unit',
+    displayUnit: 'unit',
     brand: '',
-    packageSize: '',
+    contentAmount: '',
+    contentUnit: '',
     imageUrl: '',
     notes: '',
   })
@@ -75,9 +77,10 @@ export default function GestionProductos() {
     setEditForm({
       name: product.name,
       categoryId: product.categoryId,
-      unit: product.unit,
+      displayUnit: product.displayUnit,
       brand: product.brand || '',
-      packageSize: product.packageSize || '',
+      contentAmount: product.contentAmount || '',
+      contentUnit: product.contentUnit || '',
       imageUrl: product.imageUrl || '',
       notes: product.notes || '',
     })
@@ -92,9 +95,10 @@ export default function GestionProductos() {
     updateProduct(productId, {
       name: trimmed,
       categoryId: editForm.categoryId,
-      unit: editForm.unit,
+      displayUnit: editForm.displayUnit,
       brand: editForm.brand.trim(),
-      packageSize: editForm.packageSize.trim(),
+      contentAmount: editForm.contentAmount ? parseFloat(editForm.contentAmount) : null,
+      contentUnit: editForm.contentUnit || null,
       imageUrl: editForm.imageUrl.trim(),
       notes: editForm.notes.trim(),
     })
@@ -109,13 +113,14 @@ export default function GestionProductos() {
       name: trimmed,
       categoryId: createForm.categoryId,
       quantity: createForm.quantity,
-      unit: createForm.unit,
+      displayUnit: createForm.displayUnit,
       brand: createForm.brand.trim(),
-      packageSize: createForm.packageSize.trim(),
+      contentAmount: createForm.contentAmount ? parseFloat(createForm.contentAmount) : null,
+      contentUnit: createForm.contentUnit || null,
       imageUrl: createForm.imageUrl.trim(),
       notes: createForm.notes.trim(),
     })
-    setCreateForm({ name: '', categoryId: '', quantity: 0, unit: 'unit', brand: '', packageSize: '', imageUrl: '', notes: '' })
+    setCreateForm({ name: '', categoryId: '', quantity: 0, displayUnit: 'unit', brand: '', contentAmount: '', contentUnit: '', imageUrl: '', notes: '' })
     setShowCreateForm(false)
   }
 
@@ -225,8 +230,8 @@ export default function GestionProductos() {
 }
 
 function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
-  const unit = UNITS.find((u) => u.id === product.unit)
-  const hasExtras = product.brand || product.packageSize || product.notes
+  const unit = ALL_UNITS_MAP[product.displayUnit]
+  const hasExtras = product.brand || product.notes
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm md:px-4 md:py-3">
@@ -255,13 +260,7 @@ function ProductCard({ product, onEdit, onDelete, onToggleVisibility }) {
             <p className="text-xs text-slate-500">
               {product.category}
               <span className="mx-1.5 text-slate-300">·</span>
-              {unit?.label || product.unit}
-              {product.packageSize && (
-                <>
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  {product.packageSize}
-                </>
-              )}
+              {formatProductUnit(product)}
               <span className="mx-1.5 text-slate-300">·</span>
               Stock: {product.quantity}
             </p>
@@ -352,16 +351,56 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
             className="w-20 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           />
           <select
-            value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            value={form.displayUnit}
+            onChange={(e) => {
+              const val = e.target.value
+              setForm({
+                ...form,
+                displayUnit: val,
+                contentAmount: isPackageUnit(val) ? form.contentAmount : '',
+                contentUnit: isPackageUnit(val) ? form.contentUnit : '',
+              })
+            }}
             className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
           >
-            {UNITS.map((u) => (
+            <optgroup label="Medida directa">
+              {BASE_UNITS.map((u) => (
+                <option key={u.id} value={u.id}>{u.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Empaques">
+              {PACKAGE_UNITS.map((u) => (
+                <option key={u.id} value={u.id}>{u.label}</option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      {isPackageUnit(form.displayUnit) && (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-slate-500 whitespace-nowrap">Contenido por {ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'}:</span>
+          <input
+            type="number"
+            step="any"
+            min="0"
+            placeholder="Cantidad"
+            value={form.contentAmount}
+            onChange={(e) => setForm({ ...form, contentAmount: e.target.value })}
+            className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          />
+          <select
+            value={form.contentUnit}
+            onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="">Unidad</option>
+            {BASE_UNITS.map((u) => (
               <option key={u.id} value={u.id}>{u.label}</option>
             ))}
           </select>
         </div>
-      </div>
+      )}
 
       <button
         type="button"
@@ -377,10 +416,6 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Marca</label>
             <input type="text" placeholder="Ej: Alquería, Diana..." value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Cantidad por envase</label>
-            <input type="text" placeholder="Ej: 1.1L, 500g, 12 und..." value={form.packageSize} onChange={(e) => setForm({ ...form, packageSize: e.target.value })} className={inputClass} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">URL de foto</label>
@@ -409,7 +444,7 @@ function CreateForm({ form, setForm, categories, onConfirm, onCancel, navigate }
 
 function EditForm({ product, form, setForm, categories, onConfirm, onCancel, navigate }) {
   const [showOptional, setShowOptional] = useState(
-    Boolean(form.brand || form.packageSize || form.imageUrl || form.notes),
+    Boolean(form.brand || form.imageUrl || form.notes),
   )
 
   const inputClass =
@@ -457,17 +492,55 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
           <option value="__create__">+ Crear categoría</option>
         </select>
         <select
-          value={form.unit}
-          onChange={(e) => setForm({ ...form, unit: e.target.value })}
+          value={form.displayUnit}
+          onChange={(e) => {
+            const val = e.target.value
+            setForm({
+              ...form,
+              displayUnit: val,
+              contentAmount: isPackageUnit(val) ? form.contentAmount : '',
+              contentUnit: isPackageUnit(val) ? form.contentUnit : '',
+            })
+          }}
           className={inputClass}
         >
-          {UNITS.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.label}
-            </option>
-          ))}
+          <optgroup label="Medida directa">
+            {BASE_UNITS.map((u) => (
+              <option key={u.id} value={u.id}>{u.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Empaques">
+            {PACKAGE_UNITS.map((u) => (
+              <option key={u.id} value={u.id}>{u.label}</option>
+            ))}
+          </optgroup>
         </select>
       </div>
+
+      {isPackageUnit(form.displayUnit) && (
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-slate-500 whitespace-nowrap">Contenido por {ALL_UNITS_MAP[form.displayUnit]?.label?.toLowerCase() || 'empaque'}:</span>
+          <input
+            type="number"
+            step="any"
+            min="0"
+            placeholder="Cantidad"
+            value={form.contentAmount}
+            onChange={(e) => setForm({ ...form, contentAmount: e.target.value })}
+            className="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          />
+          <select
+            value={form.contentUnit}
+            onChange={(e) => setForm({ ...form, contentUnit: e.target.value })}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="">Unidad</option>
+            {BASE_UNITS.map((u) => (
+              <option key={u.id} value={u.id}>{u.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button
         type="button"
@@ -489,20 +562,6 @@ function EditForm({ product, form, setForm, categories, onConfirm, onCancel, nav
               placeholder="Ej: Alquería, Diana..."
               value={form.brand}
               onChange={(e) => setForm({ ...form, brand: e.target.value })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
-              Cantidad por envase
-            </label>
-            <input
-              type="text"
-              placeholder="Ej: 1.1L, 500g, 12 und..."
-              value={form.packageSize}
-              onChange={(e) =>
-                setForm({ ...form, packageSize: e.target.value })
-              }
               className={inputClass}
             />
           </div>

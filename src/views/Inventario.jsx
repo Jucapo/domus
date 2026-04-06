@@ -4,9 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
-import { UNITS } from '../data/units'
-
-const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
+import { ALL_UNITS, BASE_UNITS, PACKAGE_UNITS, isPackageUnit, ALL_UNITS_MAP, formatProductUnit } from '../data/units'
 
 export default function Inventario() {
   const navigate = useNavigate()
@@ -37,9 +35,10 @@ export default function Inventario() {
     name: '',
     categoryId: '',
     quantity: 1,
-    unit: 'unit',
+    displayUnit: 'unit',
     brand: '',
-    packageSize: '',
+    contentAmount: '',
+    contentUnit: '',
     imageUrl: '',
     notes: '',
   })
@@ -56,8 +55,13 @@ export default function Inventario() {
   const handleAdd = (e) => {
     e.preventDefault()
     if (!newProduct.name.trim() || !newProduct.categoryId) return
-    addProduct({ ...newProduct, householdId })
-    setNewProduct({ name: '', categoryId: '', quantity: 1, unit: 'unit', brand: '', packageSize: '', imageUrl: '', notes: '' })
+    addProduct({
+      ...newProduct,
+      householdId,
+      contentAmount: newProduct.contentAmount ? parseFloat(newProduct.contentAmount) : null,
+      contentUnit: newProduct.contentUnit || null,
+    })
+    setNewProduct({ name: '', categoryId: '', quantity: 1, displayUnit: 'unit', brand: '', contentAmount: '', contentUnit: '', imageUrl: '', notes: '' })
     setShowOptional(false)
     setShowForm(false)
   }
@@ -133,19 +137,54 @@ export default function Inventario() {
                 className="w-20 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               />
               <select
-                value={newProduct.unit}
-                onChange={(e) =>
-                  setNewProduct({ ...newProduct, unit: e.target.value })
-                }
+                value={newProduct.displayUnit}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setNewProduct({
+                    ...newProduct,
+                    displayUnit: val,
+                    contentAmount: isPackageUnit(val) ? newProduct.contentAmount : '',
+                    contentUnit: isPackageUnit(val) ? newProduct.contentUnit : '',
+                  })
+                }}
                 className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               >
-                {UNITS.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.label}
-                  </option>
-                ))}
+                <optgroup label="Medida directa">
+                  {BASE_UNITS.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Empaques">
+                  {PACKAGE_UNITS.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </optgroup>
               </select>
             </div>
+            {isPackageUnit(newProduct.displayUnit) && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 whitespace-nowrap">Contenido:</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="Cant."
+                  value={newProduct.contentAmount}
+                  onChange={(e) => setNewProduct({ ...newProduct, contentAmount: e.target.value })}
+                  className="w-20 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                />
+                <select
+                  value={newProduct.contentUnit}
+                  onChange={(e) => setNewProduct({ ...newProduct, contentUnit: e.target.value })}
+                  className="flex-1 rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                >
+                  <option value="">Unidad</option>
+                  {BASE_UNITS.map((u) => (
+                    <option key={u.id} value={u.id}>{u.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button
               type="submit"
               className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
@@ -170,13 +209,6 @@ export default function Inventario() {
                 placeholder="Marca"
                 value={newProduct.brand}
                 onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Cantidad por envase (ej: 1.1L)"
-                value={newProduct.packageSize}
-                onChange={(e) => setNewProduct({ ...newProduct, packageSize: e.target.value })}
                 className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
               />
               <input
@@ -222,7 +254,7 @@ export default function Inventario() {
               {filtered
                 .filter((p) => p.category === category)
                 .map((product) => {
-                  const unit = unitMap[product.unit]
+                  const unit = ALL_UNITS_MAP[product.displayUnit]
                   return (
                     <div
                       key={product.id}
@@ -250,16 +282,9 @@ export default function Inventario() {
                             )}
                           </p>
                           <p className="text-xs text-slate-500">
-                            {unit && (
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                                {unit.label}
-                              </span>
-                            )}
-                            {product.packageSize && (
-                              <span className="ml-1.5 text-slate-400">
-                                {product.packageSize}
-                              </span>
-                            )}
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
+                              {formatProductUnit(product)}
+                            </span>
                           </p>
                         </div>
                       </div>

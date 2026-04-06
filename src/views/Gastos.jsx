@@ -10,9 +10,7 @@ import {
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
-import { UNITS } from '../data/units'
-
-const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
+import { ALL_UNITS_MAP } from '../data/units'
 
 const MONTH_ABBR = [
   'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
@@ -131,12 +129,12 @@ export default function Gastos() {
       }
 
       if (!catMap[catId].products[r.productId]) {
-        const unit = unitMap[product.unit]
+        const unit = ALL_UNITS_MAP[product.displayUnit]
         catMap[catId].products[r.productId] = {
           id: r.productId,
           name: product.name,
-          unit: unit?.abbreviation || product.unit,
-          unitLabel: unit?.label || product.unit,
+          unit: unit?.abbreviation || product.displayUnit,
+          unitLabel: unit?.label || product.displayUnit,
           total: 0,
           quantity: 0,
           records: 0,

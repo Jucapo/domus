@@ -9,12 +9,13 @@ function mapRow(row) {
     category: row.categories?.name || '',
     name: row.name,
     quantity: row.quantity,
-    unit: row.unit,
+    displayUnit: row.display_unit,
+    contentAmount: row.content_amount ? Number(row.content_amount) : null,
+    contentUnit: row.content_unit || null,
     inShoppingList: row.in_shopping_list,
     pendingRegistration: row.pending_registration,
     visibleInInventory: row.visible_in_inventory,
     brand: row.brand,
-    packageSize: row.package_size,
     imageUrl: row.image_url,
     notes: row.notes,
   }
@@ -46,9 +47,10 @@ export const useProductStore = create((set, get) => ({
         category_id: product.categoryId || null,
         name: product.name,
         quantity: product.quantity ?? 0,
-        unit: product.unit || 'unit',
+        display_unit: product.displayUnit || 'unit',
+        content_amount: product.contentAmount || null,
+        content_unit: product.contentUnit || null,
         brand: product.brand || '',
-        package_size: product.packageSize || '',
         image_url: product.imageUrl || '',
         notes: product.notes || '',
         visible_in_inventory: product.visibleInInventory ?? true,
@@ -67,12 +69,13 @@ export const useProductStore = create((set, get) => ({
     if (updates.name !== undefined) dbUpdates.name = updates.name
     if (updates.categoryId !== undefined) dbUpdates.category_id = updates.categoryId
     if (updates.quantity !== undefined) dbUpdates.quantity = updates.quantity
-    if (updates.unit !== undefined) dbUpdates.unit = updates.unit
+    if (updates.displayUnit !== undefined) dbUpdates.display_unit = updates.displayUnit
+    if (updates.contentAmount !== undefined) dbUpdates.content_amount = updates.contentAmount || null
+    if (updates.contentUnit !== undefined) dbUpdates.content_unit = updates.contentUnit || null
     if (updates.inShoppingList !== undefined) dbUpdates.in_shopping_list = updates.inShoppingList
     if (updates.pendingRegistration !== undefined) dbUpdates.pending_registration = updates.pendingRegistration
     if (updates.visibleInInventory !== undefined) dbUpdates.visible_in_inventory = updates.visibleInInventory
     if (updates.brand !== undefined) dbUpdates.brand = updates.brand
-    if (updates.packageSize !== undefined) dbUpdates.package_size = updates.packageSize
     if (updates.imageUrl !== undefined) dbUpdates.image_url = updates.imageUrl
     if (updates.notes !== undefined) dbUpdates.notes = updates.notes
 

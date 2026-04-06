@@ -16,9 +16,7 @@ import {
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
-import { UNITS } from '../data/units'
-
-const unitMap = Object.fromEntries(UNITS.map((u) => [u.id, u]))
+import { ALL_UNITS_MAP } from '../data/units'
 
 function formatPrice(price) {
   return new Intl.NumberFormat('es-CO', {
@@ -194,7 +192,7 @@ function PendingTab({ householdId, products }) {
   }
 
   const selectedManualProduct = householdProducts.find((p) => p.id === manualForm.productId)
-  const manualUnit = selectedManualProduct ? unitMap[selectedManualProduct.unit] : null
+  const manualUnit = selectedManualProduct ? ALL_UNITS_MAP[selectedManualProduct.displayUnit] : null
 
   return (
     <div className="space-y-4">
@@ -323,7 +321,7 @@ function PendingTab({ householdId, products }) {
       ) : (
         <div className="space-y-2">
           {products.map((product) => {
-            const unit = unitMap[product.unit]
+            const unit = ALL_UNITS_MAP[product.displayUnit]
             const isFormOpen = activeFormId === product.id
 
             return (
@@ -545,7 +543,7 @@ function HistoryTab({ householdId }) {
                   const isExpanded = expandedId === product.id
                   const latest = records[0]
                   const previous = records[1]
-                  const unit = unitMap[product.unit]
+                  const unit = ALL_UNITS_MAP[product.displayUnit]
 
                   let trend = null
                   if (latest && previous) {
