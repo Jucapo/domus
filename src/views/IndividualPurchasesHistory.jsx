@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Search, Trash2 } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
@@ -29,7 +29,35 @@ export default function IndividualPurchasesHistory() {
       .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   }, [allRecords, householdId])
 
+  const [tableSearch, setTableSearch] = useState('')
+
+  const filteredRecords = useMemo(() => {
+    const q = tableSearch.trim().toLowerCase()
+    if (!q) return individualRecords
+    return individualRecords.filter((r) => {
+      const name = productNameById.get(r.productId) || ''
+      const store = r.store || ''
+      const hay = [
+        name,
+        store,
+        r.date,
+        formatDate(r.date),
+        String(r.quantity),
+        String(r.price),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [individualRecords, tableSearch, productNameById])
+
   const [editingId, setEditingId] = useState(null)
+
+  useEffect(() => {
+    if (!editingId) return
+    const stillVisible = filteredRecords.some((r) => r.id === editingId)
+    if (!stillVisible) setEditingId(null)
+  }, [filteredRecords, editingId])
   const [editForm, setEditForm] = useState({
     price: '',
     quantity: '',
@@ -92,7 +120,24 @@ export default function IndividualPurchasesHistory() {
   }
 
   return (
-    <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-xl border border-slate-200 bg-white [-webkit-overflow-scrolling:touch]">
+    <div className="space-y-3">
+      <div className="relative">
+        <Search
+          size={16}
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={tableSearch}
+          onChange={(e) => setTableSearch(e.target.value)}
+          placeholder="Buscar por producto, lugar, fecha…"
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pr-4 pl-9 text-sm shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+          autoComplete="off"
+        />
+      </div>
+
+      <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-xl border border-slate-200 bg-white [-webkit-overflow-scrolling:touch]">
       <table className="w-full min-w-[720px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase text-slate-500">
@@ -106,7 +151,7 @@ export default function IndividualPurchasesHistory() {
           </tr>
         </thead>
         <tbody>
-          {individualRecords.map((r) => {
+          {filteredRecords.map((r) => {
             const name = productNameById.get(r.productId) || 'Producto'
             const lineTotal = r.price * r.quantity
             const editing = editingId === r.id
@@ -212,8 +257,19 @@ export default function IndividualPurchasesHistory() {
               </tr>
             )
           })}
+          {filteredRecords.length === 0 ? (
+            <tr>
+              <td
+                colSpan={7}
+                className="px-4 py-8 text-center text-sm text-slate-500"
+              >
+                Ningún registro coincide con la búsqueda.
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

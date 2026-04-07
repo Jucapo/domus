@@ -155,17 +155,52 @@ function textContentToLines(textContent) {
   return out.join('\n')
 }
 
-/** Extrae texto del PDF con saltos de línea aproximados (navegador). */
-export async function extractPdfText(file) {
+/**
+ * Extrae texto del PDF con saltos de línea aproximados (navegador).
+ * @param {File} file
+ * @param {{ onProgress?: (pct0to100: number) => void }} [options]
+ */
+export async function extractPdfText(file, options = {}) {
+  const { onProgress } = options
+  let lastPct = -1
+  const report = (pct) => {
+    const p = Math.min(100, Math.max(0, Math.round(pct)))
+    if (p === lastPct) return
+    lastPct = p
+    onProgress?.(p)
+  }
+
+  report(0)
   const buf = await file.arrayBuffer()
-  const doc = await pdfjs.getDocument({ data: buf }).promise
+  report(3)
+
+  const loadingTask = pdfjs.getDocument({ data: buf })
+  loadingTask.onProgress = ({ loaded, total }) => {
+    if (total > 0) {
+      report(3 + (loaded / total) * 27)
+    }
+  }
+
+  const doc = await loadingTask.promise
+  const numPages = doc.numPages
+  if (numPages === 0) {
+    await doc.destroy().catch(() => {})
+    report(100)
+    return ''
+  }
+
+  report(32)
   const parts = []
-  for (let i = 1; i <= doc.numPages; i++) {
+  for (let i = 1; i <= numPages; i++) {
     const page = await doc.getPage(i)
     const tc = await page.getTextContent()
     parts.push(textContentToLines(tc))
+    report(32 + (i / numPages) * 66)
   }
+
+  report(99)
   await doc.destroy().catch(() => {})
+  report(100)
   return parts.join('\n\n')
 }
 

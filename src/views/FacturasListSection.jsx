@@ -7,6 +7,35 @@ import { useInvoiceStore } from '../store/useInvoiceStore'
 import { usePriceStore } from '../store/usePriceStore'
 import { formatPrice, formatDate } from './preciosShared'
 
+const STORE_CHIP_FALLBACK = [
+  'bg-violet-50 text-violet-800 ring-1 ring-violet-200/80',
+  'bg-amber-50 text-amber-900 ring-1 ring-amber-200/80',
+  'bg-cyan-50 text-cyan-900 ring-1 ring-cyan-200/80',
+  'bg-rose-50 text-rose-800 ring-1 ring-rose-200/80',
+  'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200/80',
+]
+
+function hashString(s) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+/** Estilos de chip para el nombre del lugar (cadenas conocidas + color estable para el resto). */
+function storeChipClasses(store) {
+  const raw = String(store || '').trim()
+  if (!raw) return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80'
+  const low = raw.toLowerCase()
+  if (low.includes('cañaveral') || low.includes('canalaveral')) {
+    return 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/80'
+  }
+  if (/\bd1\b/.test(low) || low.includes('carulla') || low.includes('éxito') || low.includes('exito')) {
+    return 'bg-sky-50 text-sky-900 ring-1 ring-sky-200/80'
+  }
+  const i = hashString(raw) % STORE_CHIP_FALLBACK.length
+  return STORE_CHIP_FALLBACK[i]
+}
+
 /** Lista de facturas guardadas (ticket agrupado). Usada dentro de Historial compras → pestaña Facturas. */
 export default function FacturasListSection() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
@@ -114,6 +143,9 @@ export default function FacturasListSection() {
             const sum = linesSum(inv)
             const total = inv.totalCop != null ? Math.round(inv.totalCop) : null
             const mismatch = total != null && sum !== total
+            const displayAmount = total != null ? total : sum
+            const n = inv.lines.length
+            const productosLabel = n === 1 ? '1 producto' : `${n} productos`
 
             return (
               <div
@@ -125,20 +157,29 @@ export default function FacturasListSection() {
                   onClick={() => setExpandedId(open ? null : inv.id)}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
                 >
-                  <span className="text-slate-400">
+                  <span className="shrink-0 text-slate-400">
                     {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {formatDate(inv.invoiceDate)} · {inv.store || 'Sin lugar'}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {inv.lines.length} línea{inv.lines.length === 1 ? '' : 's'} · Suma líneas{' '}
-                      {formatPrice(sum)}
-                      {total != null ? ` · Total factura ${formatPrice(total)}` : ''}
-                      {mismatch ? (
-                        <span className="text-amber-600"> · revisar total</span>
-                      ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900">
+                        {formatDate(inv.invoiceDate)}
+                      </span>
+                      <span
+                        className={`inline-flex max-w-[min(100%,14rem)] items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold ${storeChipClasses(inv.store)}`}
+                        title={inv.store || 'Sin lugar'}
+                      >
+                        {inv.store || 'Sin lugar'}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-500">{productosLabel}</p>
+                    {mismatch ? (
+                      <p className="mt-0.5 text-xs text-amber-600">No coincide con la suma de productos</p>
+                    ) : null}
+                  </div>
+                  <div className="shrink-0 pl-2 text-right">
+                    <p className="text-lg font-bold leading-tight tracking-tight text-slate-900 tabular-nums">
+                      {formatPrice(displayAmount)}
                     </p>
                   </div>
                 </button>

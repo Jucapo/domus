@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Trash2, Search, ShoppingBag, ClipboardList, X, FileUp } from 'lucide-react'
 import CategorySection from '../components/CategorySection'
+import BlockingLoadingOverlay from '../components/BlockingLoadingOverlay'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
@@ -12,8 +13,9 @@ import { ALL_UNITS_MAP } from '../data/units'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
 import {
   buildProductMetaChips,
+  productMetaChipClassName,
   productUnitSummaryLine,
-  PRODUCT_META_CHIP_CLASS,
+  PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
 } from '../lib/productDisplay'
 import {
   formatPrice,
@@ -220,7 +222,7 @@ function PendingRegistrationPanel({ householdId, products }) {
       setPdfImportStatus({ type: 'error', message: 'El archivo debe ser un PDF.' })
       return
     }
-    setPdfImportStatus({ type: 'loading', message: 'Leyendo PDF…' })
+    setPdfImportStatus({ type: 'loading', message: 'Leyendo PDF…', progress: 0 })
     try {
       const {
         buildBarcodeToProductIdMap,
@@ -228,7 +230,13 @@ function PendingRegistrationPanel({ householdId, products }) {
         parsePdfForBatchForm,
         parsedItemsToBatchLines,
       } = await import('../lib/invoicePdfImport')
-      const text = await extractPdfText(file)
+      const text = await extractPdfText(file, {
+        onProgress: (pct) => {
+          setPdfImportStatus((s) =>
+            s.type === 'loading' ? { ...s, progress: pct } : s,
+          )
+        },
+      })
       const parsed = parsePdfForBatchForm(text, batchPdfSourceId)
       if (parsed.items.length === 0) {
         setPdfImportStatus({
@@ -407,6 +415,17 @@ function PendingRegistrationPanel({ householdId, products }) {
 
   return (
     <div className="space-y-4">
+      <BlockingLoadingOverlay
+        open={pdfImportStatus.type === 'loading' || batchSaving}
+        title={batchSaving ? 'Guardando factura…' : 'Leyendo PDF…'}
+        message={
+          batchSaving
+            ? 'Creando la factura y los registros de precio. Espera un momento.'
+            : 'Extrayendo texto del PDF…'
+        }
+        indeterminate={batchSaving}
+        progress={batchSaving ? undefined : pdfImportStatus.progress}
+      />
       <div className="flex justify-end">
         <button
           type="button"
@@ -726,6 +745,7 @@ function PendingRegistrationPanel({ householdId, products }) {
                 >
                   {categoryProducts.map((product) => {
             const unit = ALL_UNITS_MAP[product.displayUnit]
+            const unitSummary = productUnitSummaryLine(product)
             const isFormOpen = activeFormId === product.id
 
             return (
@@ -746,17 +766,17 @@ function PendingRegistrationPanel({ householdId, products }) {
                         {buildProductMetaChips(product).map((chip) => (
                           <span
                             key={`${product.id}:${chip.key}`}
-                            className={PRODUCT_META_CHIP_CLASS}
+                            className={productMetaChipClassName(chip.key)}
                           >
                             {chip.label}
                           </span>
                         ))}
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                          {productUnitSummaryLine(product)}
-                        </span>
-                      </p>
+                      {unitSummary ? (
+                        <p className="mt-1 text-xs text-slate-500">
+                          <span className={PRODUCT_DISPLAY_UNIT_CHIP_CLASS}>{unitSummary}</span>
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">

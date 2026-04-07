@@ -31,8 +31,9 @@ import {
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
 import {
   buildProductMetaChips,
+  productMetaChipClassName,
   productUnitSummaryLine,
-  PRODUCT_META_CHIP_CLASS,
+  PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
 } from '../lib/productDisplay'
 
 /** Etiqueta en el select de medida del contenido del empaque */
@@ -363,6 +364,7 @@ function ProductCard({
   accentClass = '',
 }) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
+  const unitSummary = productUnitSummaryLine(product)
 
   return (
     <div
@@ -389,17 +391,17 @@ function ProductCard({
               {buildProductMetaChips(product).map((chip) => (
                 <span
                   key={`${product.id}:${chip.key}`}
-                  className={PRODUCT_META_CHIP_CLASS}
+                  className={productMetaChipClassName(chip.key)}
                 >
                   {chip.label}
                 </span>
               ))}
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-                {productUnitSummaryLine(product)}
-              </span>
-              <span className="ml-1.5 text-slate-400">
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-slate-500">
+              {unitSummary ? (
+                <span className={PRODUCT_DISPLAY_UNIT_CHIP_CLASS}>{unitSummary}</span>
+              ) : null}
+              <span className="text-slate-400">
                 · Stock: {product.quantity}
                 {unit && (
                   <span className="ml-0.5 text-slate-400">{unit.abbreviation}</span>

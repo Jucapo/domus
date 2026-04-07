@@ -221,6 +221,18 @@ export const useProductStore = create((set, get) => ({
     await supabase.from('products').update({ in_shopping_list: false }).eq('id', productId)
   },
 
+  /** Marca el producto como pendiente por comprar (lista de compras). Idempotente si ya está en la lista. */
+  addToShoppingList: async (productId) => {
+    const product = get().products.find((p) => p.id === productId)
+    if (!product || product.inShoppingList) return
+    set((state) => ({
+      products: state.products.map((p) =>
+        p.id === productId ? { ...p, inShoppingList: true } : p,
+      ),
+    }))
+    await supabase.from('products').update({ in_shopping_list: true }).eq('id', productId)
+  },
+
   markAsBought: async (productId) => {
     set((state) => ({
       products: state.products.map((p) =>

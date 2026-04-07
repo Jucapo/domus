@@ -16,8 +16,9 @@ import {
 } from '../data/units'
 import {
   buildProductMetaChips,
+  productMetaChipClassName,
   productUnitSummaryLine,
-  PRODUCT_META_CHIP_CLASS,
+  PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
 } from '../lib/productDisplay'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
 
@@ -35,6 +36,7 @@ function InventoryProductRow({
   onToggleShopping,
 }) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
+  const unitSummary = productUnitSummaryLine(product)
   return (
     <div
       className={`flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4 ${productAccent}`}
@@ -57,16 +59,19 @@ function InventoryProductRow({
               {product.name}
             </span>
             {buildProductMetaChips(product).map((chip) => (
-              <span key={`${product.id}:${chip.key}`} className={PRODUCT_META_CHIP_CLASS}>
+              <span
+                key={`${product.id}:${chip.key}`}
+                className={productMetaChipClassName(chip.key)}
+              >
                 {chip.label}
               </span>
             ))}
           </div>
-          <p className="mt-1 text-xs text-slate-500">
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-400">
-              {productUnitSummaryLine(product)}
-            </span>
-          </p>
+          {unitSummary ? (
+            <p className="mt-1 text-xs text-slate-500">
+              <span className={PRODUCT_DISPLAY_UNIT_CHIP_CLASS}>{unitSummary}</span>
+            </p>
+          ) : null}
         </div>
       </div>
 
