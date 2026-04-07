@@ -11,6 +11,7 @@ import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import { ALL_UNITS_MAP } from '../data/units'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
+import { toTitleCase } from '../lib/textCase'
 import {
   buildProductMetaChips,
   productMetaChipClassName,
@@ -566,7 +567,7 @@ function PendingRegistrationPanel({ householdId, products }) {
                           <option value="">Seleccionar…</option>
                           {householdProducts.map((prod) => (
                             <option key={prod.id} value={prod.id}>
-                              {prod.name}
+                              {toTitleCase(prod.name)}
                               {prod.category ? ` (${prod.category})` : ''}
                               {prod.pendingRegistration ? ' · por registrar' : ''}
                             </option>
@@ -761,7 +762,7 @@ function PendingRegistrationPanel({ householdId, products }) {
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-1">
                         <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
-                          {product.name}
+                          {toTitleCase(product.name)}
                         </span>
                         {buildProductMetaChips(product).map((chip) => (
                           <span

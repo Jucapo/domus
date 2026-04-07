@@ -20,6 +20,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
+import { toTitleCase } from '../lib/textCase'
 import {
   BASE_UNITS,
   PACKAGE_UNITS,
@@ -34,11 +35,12 @@ import {
   productMetaChipClassName,
   productUnitSummaryLine,
   PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
+  CHIP_DESKTOP_SIZE,
 } from '../lib/productDisplay'
 
 /** Etiqueta en el select de medida del contenido del empaque */
 function contentUnitSelectLabel(u) {
-  return u.id === 'unit' ? 'unidad(es)' : u.label
+  return u.id === 'unit' ? 'Unidad(es)' : u.label
 }
 
 /** Unidades que se guardan en linked_units_per_package: las de «Unidad(es) por …» arriba */
@@ -365,13 +367,14 @@ function ProductCard({
 }) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
   const unitSummary = productUnitSummaryLine(product)
+  const metaChips = buildProductMetaChips(product)
 
   return (
     <div
       className={`rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md md:px-4 md:py-3 ${accentClass}`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -383,16 +386,15 @@ function ProductCard({
               <Image size={16} className="text-slate-300" />
             </div>
           )}
-          <div className="min-w-0">
+
+          {/* Mobile */}
+          <div className="min-w-0 md:hidden">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               <span className="min-w-0 truncate text-sm font-medium text-slate-900">
-                {product.name}
+                {toTitleCase(product.name)}
               </span>
-              {buildProductMetaChips(product).map((chip) => (
-                <span
-                  key={`${product.id}:${chip.key}`}
-                  className={productMetaChipClassName(chip.key)}
-                >
+              {metaChips.map((chip) => (
+                <span key={`${product.id}:${chip.key}`} className={productMetaChipClassName(chip.key)}>
                   {chip.label}
                 </span>
               ))}
@@ -403,24 +405,50 @@ function ProductCard({
               ) : null}
               <span className="text-slate-400">
                 · Stock: {product.quantity}
-                {unit && (
-                  <span className="ml-0.5 text-slate-400">{unit.abbreviation}</span>
-                )}
+                {unit && <span className="ml-0.5 text-slate-400">{unit.abbreviation}</span>}
               </span>
             </p>
             {linkedProductName && (
               <p className="mt-0.5 text-[10px] text-indigo-600">
-                Compras: +
-                {product.linkedUnitsPerPackage ?? product.contentAmount ?? '…'}{' '}
-                en «{linkedProductName}» por cada{' '}
-                {unit?.abbreviation || 'ud'} registrada
+                Compras: +{product.linkedUnitsPerPackage ?? product.contentAmount ?? '…'}{' '}
+                en «{linkedProductName}» por cada {unit?.abbreviation || 'ud'} registrada
               </p>
             )}
             {product.notes && (
-              <p className="mt-0.5 truncate text-xs text-slate-400 italic">
-                {product.notes}
-              </p>
+              <p className="mt-0.5 truncate text-xs text-slate-400 italic">{product.notes}</p>
             )}
+          </div>
+
+          {/* Desktop */}
+          <div className="hidden min-w-0 flex-1 items-center gap-6 md:flex">
+            <div className="min-w-0 shrink-0">
+              <p className="truncate text-base font-medium text-slate-900">{toTitleCase(product.name)}</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Stock: {product.quantity}
+                {unit ? <span className="ml-0.5">{unit.abbreviation}</span> : null}
+              </p>
+              {linkedProductName && (
+                <p className="mt-0.5 text-[10px] text-indigo-600">
+                  Compras: +{product.linkedUnitsPerPackage ?? product.contentAmount ?? '…'}{' '}
+                  en «{linkedProductName}» por cada {unit?.abbreviation || 'ud'} registrada
+                </p>
+              )}
+              {product.notes && (
+                <p className="mt-0.5 truncate text-xs text-slate-400 italic">{product.notes}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {metaChips.map((chip) => (
+                <span key={`${product.id}:${chip.key}`} className={`${productMetaChipClassName(chip.key)} ${CHIP_DESKTOP_SIZE}`}>
+                  {chip.desktopPrefix} {chip.desktopValue}
+                </span>
+              ))}
+              {unitSummary ? (
+                <span className={`${PRODUCT_DISPLAY_UNIT_CHIP_CLASS} ${CHIP_DESKTOP_SIZE}`}>
+                  Tipo: {unitSummary}
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -601,7 +629,7 @@ function LinkedStockFields({ form, setForm, products, categoryId, excludeProduct
               <p className="rounded-lg border border-indigo-100 bg-indigo-50/50 px-3 py-2 text-[11px] text-indigo-900">
                 Se sumará al producto base la cantidad de{' '}
                 <strong>
-                  {form.contentAmount || '…'} unidad(es)
+                  {form.contentAmount || '…'} Unidad(es)
                 </strong>{' '}
                 por cada {packLabel} (la misma cifra de arriba).
               </p>

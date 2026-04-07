@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
+import { toTitleCase } from '../lib/textCase'
 import {
   BASE_UNITS,
   PACKAGE_UNITS,
@@ -19,6 +20,7 @@ import {
   productMetaChipClassName,
   productUnitSummaryLine,
   PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
+  CHIP_DESKTOP_SIZE,
 } from '../lib/productDisplay'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
 
@@ -37,11 +39,12 @@ function InventoryProductRow({
 }) {
   const unit = ALL_UNITS_MAP[product.displayUnit]
   const unitSummary = productUnitSummaryLine(product)
+  const metaChips = buildProductMetaChips(product)
   return (
     <div
       className={`flex flex-col gap-3 rounded-xl border border-slate-200/90 bg-white/95 px-3 py-3 shadow-sm transition-shadow hover:shadow-md sm:flex-row sm:items-center sm:justify-between md:px-5 md:py-4 ${productAccent}`}
     >
-      <div className="flex min-w-0 items-center gap-3 md:gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
         {product.imageUrl ? (
           <img
             src={product.imageUrl}
@@ -53,16 +56,15 @@ function InventoryProductRow({
             <Package size={18} className="text-slate-400" />
           </div>
         )}
-        <div className="min-w-0">
+
+        {/* --- Mobile layout: nombre + chips inline + stock debajo --- */}
+        <div className="min-w-0 flex-1 md:hidden">
           <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
-              {product.name}
+            <span className="min-w-0 truncate text-sm font-medium text-slate-900">
+              {toTitleCase(product.name)}
             </span>
-            {buildProductMetaChips(product).map((chip) => (
-              <span
-                key={`${product.id}:${chip.key}`}
-                className={productMetaChipClassName(chip.key)}
-              >
+            {metaChips.map((chip) => (
+              <span key={`${product.id}:${chip.key}`} className={productMetaChipClassName(chip.key)}>
                 {chip.label}
               </span>
             ))}
@@ -72,6 +74,29 @@ function InventoryProductRow({
               <span className={PRODUCT_DISPLAY_UNIT_CHIP_CLASS}>{unitSummary}</span>
             </p>
           ) : null}
+        </div>
+
+        {/* --- Desktop layout: columna nombre/stock + columna chips --- */}
+        <div className="hidden min-w-0 flex-1 items-center gap-6 md:flex">
+          <div className="min-w-0 shrink-0">
+            <p className="truncate text-base font-medium text-slate-900">{toTitleCase(product.name)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Stock: {product.quantity}
+              {unit ? <span className="ml-0.5">{unit.abbreviation}</span> : null}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {metaChips.map((chip) => (
+              <span key={`${product.id}:${chip.key}`} className={`${productMetaChipClassName(chip.key)} ${CHIP_DESKTOP_SIZE}`}>
+                {chip.desktopPrefix} {chip.desktopValue}
+              </span>
+            ))}
+            {unitSummary ? (
+              <span className={`${PRODUCT_DISPLAY_UNIT_CHIP_CLASS} ${CHIP_DESKTOP_SIZE}`}>
+                Tipo: {unitSummary}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 

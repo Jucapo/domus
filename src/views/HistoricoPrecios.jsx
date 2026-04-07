@@ -26,6 +26,7 @@ import {
   PRODUCT_DISPLAY_UNIT_CHIP_CLASS,
 } from '../lib/productDisplay'
 import { formatPrice, formatDate, paidToUnitPrice, StoreField } from './preciosShared'
+import { toTitleCase } from '../lib/textCase'
 
 export default function HistoricoPrecios() {
   const householdId = useAuthStore((s) => s.user.currentHouseholdId)
@@ -165,7 +166,7 @@ function HistoryTab({ householdId }) {
                         <div className="min-w-0">
                           <div className="flex min-w-0 flex-wrap items-center gap-1">
                             <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
-                              {product.name}
+                              {toTitleCase(product.name)}
                             </span>
                             {buildProductMetaChips(product).map((chip) => (
                               <span

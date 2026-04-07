@@ -8,6 +8,7 @@ import { ALL_UNITS_MAP } from '../data/units'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import { CATEGORY_COLOR_PRODUCT_ACCENT_MAP } from '../data/category_styles'
+import { toTitleCase } from '../lib/textCase'
 import {
   buildProductMetaChips,
   productMetaChipClassName,
@@ -168,7 +169,7 @@ export default function PorComprar() {
                       onClick={() => handlePickProduct(p.id)}
                     >
                       <Plus size={14} className="shrink-0 text-indigo-500" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium">{toTitleCase(p.name)}</span>
                       {p.category ? (
                         <span className="shrink-0 text-xs text-slate-400">{p.category}</span>
                       ) : null}
@@ -256,7 +257,7 @@ export default function PorComprar() {
                   <div className="min-w-0">
                     <div className="flex min-w-0 flex-wrap items-center gap-1">
                       <span className="min-w-0 truncate text-sm font-medium text-slate-900 md:text-base">
-                        {product.name}
+                        {toTitleCase(product.name)}
                       </span>
                       {buildProductMetaChips(product).map((chip) => (
                         <span

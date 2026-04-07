@@ -13,6 +13,7 @@ import { usePriceStore } from '../store/usePriceStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS_MAP } from '../data/units'
 import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
+import { toTitleCase } from '../lib/textCase'
 
 const MONTH_ABBR = [
   'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
@@ -290,7 +291,7 @@ export default function Gastos() {
                         >
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-slate-800">
-                              {prod.name}
+                              {toTitleCase(prod.name)}
                             </p>
                             <p className="text-xs text-slate-400">
                               {prod.quantity} {prod.unit}

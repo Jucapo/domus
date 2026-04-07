@@ -9,6 +9,7 @@ export const BASE_UNITS = [
 
 export const PACKAGE_UNITS = [
   { id: 'bag', label: 'Bolsa', abbreviation: 'bolsa' },
+  { id: 'bar', label: 'Barra', abbreviation: 'barra' },
   { id: 'bottle', label: 'Botella', abbreviation: 'bot' },
   { id: 'box', label: 'Caja', abbreviation: 'caja' },
   { id: 'can', label: 'Lata', abbreviation: 'lata' },
@@ -53,6 +54,8 @@ export function packageContentRowLabel(displayUnitId) {
       return 'Unidad(es) por caja'
     case 'bag':
       return 'Contenido por bolsa'
+    case 'bar':
+      return 'Contenido por barra'
     case 'dozen':
       return 'Unidades por docena'
     case 'panal':

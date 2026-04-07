@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
 import { formatPrice, formatDate } from './preciosShared'
+import { toTitleCase } from '../lib/textCase'
 
 /** Registros de compra hechos producto por producto (sin factura agrupada). */
 export default function IndividualPurchasesHistory() {
@@ -158,7 +159,7 @@ export default function IndividualPurchasesHistory() {
 
             return (
               <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                <td className="px-3 py-2 pl-4 font-medium text-slate-900">{name}</td>
+                <td className="px-3 py-2 pl-4 font-medium text-slate-900">{toTitleCase(name)}</td>
                 {editing ? (
                   <>
                     <td className="px-3 py-2 align-top">
@@ -224,7 +225,7 @@ export default function IndividualPurchasesHistory() {
                 ) : (
                   <>
                     <td className="px-3 py-2 text-slate-600">{formatDate(r.date)}</td>
-                    <td className="px-3 py-2 text-slate-600">{r.store || '—'}</td>
+                    <td className="px-3 py-2 text-slate-600">{toTitleCase(r.store) || '—'}</td>
                     <td className="px-3 py-2 text-slate-600">{r.quantity}</td>
                     <td className="px-3 py-2 text-slate-600">{formatPrice(r.price)}</td>
                     <td className="px-3 py-2 font-medium text-slate-900">

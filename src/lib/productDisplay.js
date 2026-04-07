@@ -1,7 +1,11 @@
 import { ALL_UNITS_MAP, formatProductUnit } from '../data/units'
+import { toTitleCase } from './textCase'
 
 const CHIP_BASE =
   'inline-flex max-w-full items-center truncate rounded-md border px-1.5 py-0.5 text-[10px] font-semibold'
+
+/** Clases extra para agrandar los chips solo en el bloque desktop. Usa font-normal en el contenedor; el value va con font-bold aparte. */
+export const CHIP_DESKTOP_SIZE = 'rounded-lg px-3 py-1.5 !text-sm !font-normal'
 
 /**
  * Color fijo por tipo de dato: marca, código de barras (COD:), cantidad/unidad del empaque.
@@ -25,17 +29,18 @@ export const PRODUCT_DISPLAY_UNIT_CHIP_CLASS = `${CHIP_BASE} border-emerald-200/
 
 export function buildProductMetaChips(product) {
   const chips = []
-  if (product.brand) chips.push({ key: 'brand', label: product.brand })
+  if (product.brand) {
+    const b = toTitleCase(product.brand)
+    chips.push({ key: 'brand', label: b, desktopPrefix: 'Marca:', desktopValue: b })
+  }
   if (product.barcode) {
     const bc = String(product.barcode).trim()
-    if (bc) chips.push({ key: 'barcode', label: `COD: ${bc}` })
+    if (bc) chips.push({ key: 'barcode', label: `COD: ${bc}`, desktopPrefix: 'COD:', desktopValue: bc })
   }
   if (product.contentAmount && product.contentUnit) {
     const cu = ALL_UNITS_MAP[product.contentUnit]
-    chips.push({
-      key: 'content',
-      label: `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`,
-    })
+    const short = `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`
+    chips.push({ key: 'content', label: short, desktopPrefix: 'Cant:', desktopValue: short })
   }
   return chips
 }

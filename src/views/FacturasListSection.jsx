@@ -6,6 +6,7 @@ import { useProductStore } from '../store/useProductStore'
 import { useInvoiceStore } from '../store/useInvoiceStore'
 import { usePriceStore } from '../store/usePriceStore'
 import { formatPrice, formatDate } from './preciosShared'
+import { toTitleCase } from '../lib/textCase'
 
 const STORE_CHIP_FALLBACK = [
   'bg-violet-50 text-violet-800 ring-1 ring-violet-200/80',
@@ -167,9 +168,9 @@ export default function FacturasListSection() {
                       </span>
                       <span
                         className={`inline-flex max-w-[min(100%,14rem)] items-center truncate rounded-full px-2.5 py-0.5 text-xs font-semibold ${storeChipClasses(inv.store)}`}
-                        title={inv.store || 'Sin lugar'}
+                        title={toTitleCase(inv.store) || 'Sin lugar'}
                       >
-                        {inv.store || 'Sin lugar'}
+                        {toTitleCase(inv.store) || 'Sin lugar'}
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-slate-500">{productosLabel}</p>
@@ -280,7 +281,7 @@ export default function FacturasListSection() {
                             const lineTotal = line.price * line.quantity
                             return (
                               <tr key={line.id} className="border-b border-slate-50 last:border-0">
-                                <td className="px-3 py-2 text-slate-800">{name}</td>
+                                <td className="px-3 py-2 text-slate-800">{toTitleCase(name)}</td>
                                 <td className="px-3 py-2 text-slate-600">{line.quantity}</td>
                                 <td className="px-3 py-2 text-slate-600">{formatPrice(line.price)}</td>
                                 <td className="px-3 py-2 font-medium text-slate-900">
