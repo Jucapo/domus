@@ -50,7 +50,20 @@ create table public.products (
   created_at timestamptz not null default now()
 );
 
--- 5. PRICE RECORDS
+-- 5. INVOICES (tickets agrupados desde "Registrar factura")
+create table public.invoices (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  store text not null default '',
+  invoice_date date not null default current_date,
+  total_cop numeric(12,2),
+  created_at timestamptz not null default now()
+);
+
+create index idx_invoices_household on public.invoices(household_id);
+create index idx_invoices_date on public.invoices(household_id, invoice_date desc);
+
+-- 6. PRICE RECORDS
 create table public.price_records (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products(id) on delete cascade,
@@ -59,6 +72,7 @@ create table public.price_records (
   quantity numeric(12,4) not null default 1,
   store text not null default '',
   recorded_date date not null default current_date,
+  invoice_id uuid references public.invoices(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -69,6 +83,7 @@ create index idx_products_category on public.products(category_id);
 create index idx_products_linked_product on public.products(linked_product_id);
 create index idx_price_records_product on public.price_records(product_id);
 create index idx_price_records_household on public.price_records(household_id);
+create index idx_price_records_invoice on public.price_records(invoice_id);
 
 -- ROW LEVEL SECURITY — permisivo para beta
 alter table public.households enable row level security;
@@ -76,9 +91,11 @@ alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
 alter table public.products enable row level security;
 alter table public.price_records enable row level security;
+alter table public.invoices enable row level security;
 
 create policy "allow_all" on public.households for all using (true) with check (true);
 create policy "allow_all" on public.profiles for all using (true) with check (true);
 create policy "allow_all" on public.categories for all using (true) with check (true);
 create policy "allow_all" on public.products for all using (true) with check (true);
 create policy "allow_all" on public.price_records for all using (true) with check (true);
+create policy "allow_all" on public.invoices for all using (true) with check (true);

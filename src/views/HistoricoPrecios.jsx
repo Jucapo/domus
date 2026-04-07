@@ -32,8 +32,10 @@ export default function HistoricoPrecios() {
   return (
     <div>
       <div className="mb-4 md:mb-6">
-        <h2 className="text-xl font-bold text-slate-900 md:text-2xl">Histórico de precios</h2>
-        <p className="mt-0.5 text-sm text-slate-500">
+        <h2 className="hidden text-xl font-bold text-slate-900 md:block md:text-2xl">
+          Histórico de precios
+        </h2>
+        <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
           Consulta y compara lo que pagaste por producto a lo largo del tiempo.
         </p>
       </div>

@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Tag, PackageSearch, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { useAuthStore } from '../store/useAuthStore'
 
 export default function AvatarMenu({ size = 'md' }) {
   const user = useAuthStore((s) => s.user)
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
-  const navigate = useNavigate()
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -19,17 +17,13 @@ export default function AvatarMenu({ size = 'md' }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const goTo = (path) => {
-    navigate(path)
-    setOpen(false)
-  }
-
   const sizeClasses =
     size === 'sm' ? 'h-8 w-8 text-sm' : 'h-8 w-8 text-sm md:h-9 md:w-9'
 
   return (
     <div ref={menuRef} className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
         className={`flex ${sizeClasses} items-center justify-center rounded-full bg-violet-100 font-semibold text-violet-700 transition-shadow hover:ring-2 hover:ring-violet-200`}
       >
@@ -47,23 +41,7 @@ export default function AvatarMenu({ size = 'md' }) {
 
           <div className="py-1">
             <button
-              onClick={() => goTo('/gestion/categorias')}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <Tag size={16} className="text-slate-400" />
-              Categorías
-            </button>
-            <button
-              onClick={() => goTo('/gestion/productos')}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              <PackageSearch size={16} className="text-slate-400" />
-              Productos
-            </button>
-          </div>
-
-          <div className="border-t border-slate-100 py-1">
-            <button
+              type="button"
               onClick={() => setOpen(false)}
               className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-400 transition-colors hover:bg-slate-50"
             >

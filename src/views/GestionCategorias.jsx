@@ -157,10 +157,10 @@ export default function GestionCategorias() {
           <ArrowLeft size={16} />
         </button>
         <div>
-          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+          <h2 className="hidden text-xl font-bold text-slate-900 md:block md:text-2xl">
             Categorías
           </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
             {categories.length}{' '}
             {categories.length === 1 ? 'categoría' : 'categorías'} en el hogar
           </p>

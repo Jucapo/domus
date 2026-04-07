@@ -10,6 +10,7 @@ function mapRow(row) {
     quantity: Number(row.quantity ?? 1),
     store: row.store,
     date: row.recorded_date,
+    invoiceId: row.invoice_id || null,
   }
 }
 
@@ -41,6 +42,7 @@ export const usePriceStore = create((set) => ({
         quantity: record.quantity ?? 1,
         store: record.store,
         recorded_date: record.date,
+        invoice_id: record.invoiceId ?? null,
       })
       .select()
       .single()

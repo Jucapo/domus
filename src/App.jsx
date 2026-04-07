@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Inventario from './views/Inventario'
 import PorComprar from './views/PorComprar'
 import RegistrarCompra from './views/RegistrarCompra'
+import HistorialCompras from './views/HistorialCompras'
 import HistoricoPrecios from './views/HistoricoPrecios'
 import Gastos from './views/Gastos'
 import GestionCategorias from './views/GestionCategorias'
@@ -38,6 +39,11 @@ export default function App() {
           <Route index element={<Inventario />} />
           <Route path="por-comprar" element={<PorComprar />} />
           <Route path="registrar-compra" element={<RegistrarCompra />} />
+          <Route path="historial-compras" element={<HistorialCompras />} />
+          <Route
+            path="facturas"
+            element={<Navigate to="/historial-compras?tab=facturas" replace />}
+          />
           <Route path="historico-precios" element={<HistoricoPrecios />} />
           <Route path="precios" element={<Navigate to="/historico-precios" replace />} />
           <Route path="gastos" element={<Gastos />} />

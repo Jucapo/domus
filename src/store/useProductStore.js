@@ -235,9 +235,10 @@ export const useProductStore = create((set, get) => ({
 
   completeRegistration: async (productId, quantity) => {
     const product = get().products.find((p) => p.id === productId)
-    if (!product) return
+    if (!product) return { error: new Error('Producto no encontrado') }
 
-    await get().addInventoryFromPurchase(productId, quantity)
+    const inv = await get().addInventoryFromPurchase(productId, quantity)
+    if (inv?.error) return { error: inv.error }
 
     const { error } = await supabase
       .from('products')
@@ -251,6 +252,7 @@ export const useProductStore = create((set, get) => ({
         ),
       }))
     }
+    return { error }
   },
 
   skipRegistration: async (productId) => {

@@ -216,10 +216,10 @@ export default function Inventario() {
     <div>
       <div className="mb-4 flex items-center justify-between md:mb-6">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+          <h2 className="hidden text-xl font-bold text-slate-900 md:block md:text-2xl">
             Inventario
           </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
             {products.length} productos en el hogar
           </p>
         </div>

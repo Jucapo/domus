@@ -185,10 +185,10 @@ export default function Gastos() {
   return (
     <div>
       <div className="mb-4 md:mb-6">
-        <h2 className="text-xl font-bold text-slate-900 md:text-2xl">
+        <h2 className="hidden text-xl font-bold text-slate-900 md:block md:text-2xl">
           Gastos
         </h2>
-        <p className="mt-0.5 text-sm text-slate-500">
+        <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
           Resumen de gastos por periodo
         </p>
       </div>

@@ -1,9 +1,11 @@
 import { useState, useMemo, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, Trash2, Search, ShoppingBag, ClipboardList, X, FileUp } from 'lucide-react'
 import CategorySection from '../components/CategorySection'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
+import { useInvoiceStore } from '../store/useInvoiceStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { useCategoryAccordion } from '../hooks/useCategoryAccordion'
 import { ALL_UNITS_MAP } from '../data/units'
@@ -38,9 +40,25 @@ export default function RegistrarCompra() {
       <div className="mb-4 md:mb-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 md:text-2xl">Registrar compra</h2>
-            <p className="mt-0.5 text-sm text-slate-500">
-              Registra precio y stock de lo que compraste (lista por registrar o factura completa).
+            <h2 className="hidden text-xl font-bold text-slate-900 md:block md:text-2xl">
+              Registrar compra
+            </h2>
+            <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
+              Registra facturas completas o producto por producto. Consulta lo guardado en{' '}
+              <Link
+                to="/historial-compras"
+                className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
+              >
+                Historial de compras
+              </Link>
+              ; los precios también en{' '}
+              <Link
+                to="/historico-precios"
+                className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
+              >
+                Histórico de precios
+              </Link>
+              .
             </p>
           </div>
           {pendingProducts.length > 0 && (
@@ -50,6 +68,7 @@ export default function RegistrarCompra() {
           )}
         </div>
       </div>
+
       <PendingRegistrationPanel householdId={householdId} products={pendingProducts} />
     </div>
   )
@@ -61,7 +80,10 @@ function PendingRegistrationPanel({ householdId, products }) {
   const addInventoryFromPurchase = useProductStore((s) => s.addInventoryFromPurchase)
   const skipRegistration = useProductStore((s) => s.skipRegistration)
   const addRecord = usePriceStore((s) => s.addRecord)
+  const fetchRecords = usePriceStore((s) => s.fetchRecords)
   const allRecords = usePriceStore((s) => s.records)
+  const createInvoice = useInvoiceStore((s) => s.createInvoice)
+  const deleteInvoice = useInvoiceStore((s) => s.deleteInvoice)
 
   const householdProducts = useMemo(
     () =>
@@ -111,13 +133,13 @@ function PendingRegistrationPanel({ householdId, products }) {
     })
   }
 
-  const handleSubmit = (e, product) => {
+  const handleSubmit = async (e, product) => {
     e.preventDefault()
     const unitPrice = paidToUnitPrice(form.price, form.quantity)
     if (!unitPrice || !form.store.trim()) return
     const qty = parseFloat(String(form.quantity).replace(',', '.')) || 1
 
-    addRecord({
+    const { error: recErr } = await addRecord({
       productId: product.id,
       householdId,
       price: unitPrice,
@@ -125,7 +147,28 @@ function PendingRegistrationPanel({ householdId, products }) {
       store: form.store.trim(),
       date: form.date,
     })
-    completeRegistration(product.id, Math.max(1, Math.round(qty)))
+    if (recErr) {
+      window.alert(
+        recErr.message
+          ? `No se pudo guardar el precio: ${recErr.message}`
+          : 'No se pudo guardar el precio. Revisa la conexión.',
+      )
+      return
+    }
+
+    const { error: regErr } = await completeRegistration(
+      product.id,
+      Math.max(1, Math.round(qty)),
+    )
+    if (regErr) {
+      window.alert(
+        regErr.message
+          ? `Precio guardado, pero al actualizar inventario: ${regErr.message}`
+          : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
+      )
+      return
+    }
+
     setActiveFormId(null)
   }
 
@@ -248,23 +291,72 @@ function PendingRegistrationPanel({ householdId, products }) {
 
     setBatchSaving(true)
     try {
-      for (const line of validLines) {
-        const p = householdProducts.find((x) => x.id === line.productId)
-        if (!p) continue
-        await addRecord({
-          productId: line.productId,
-          householdId,
-          price: line.unitPrice,
-          quantity: line.qty,
-          store: batchForm.store.trim(),
-          date: batchForm.date,
-        })
-        if (p.pendingRegistration) {
-          await completeRegistration(line.productId, Math.max(1, Math.round(line.qty)))
-        } else {
-          await addInventoryFromPurchase(line.productId, line.qty)
-        }
+      const totalCop =
+        invoiceTotalParsed != null ? Math.round(invoiceTotalParsed) : null
+      const { data: inv, error: invErr } = await createInvoice({
+        householdId,
+        store: batchForm.store.trim(),
+        invoiceDate: batchForm.date,
+        totalCop,
+      })
+      if (invErr || !inv) {
+        window.alert(
+          invErr?.message || 'No se pudo crear el registro de factura. Inténtalo de nuevo.',
+        )
+        return
       }
+      const invoiceId = inv.id
+
+      try {
+        for (const line of validLines) {
+          const { error: recErr } = await addRecord({
+            productId: line.productId,
+            householdId,
+            price: line.unitPrice,
+            quantity: line.qty,
+            store: batchForm.store.trim(),
+            date: batchForm.date,
+            invoiceId,
+          })
+          if (recErr) throw recErr
+        }
+      } catch (recErr) {
+        await deleteInvoice(invoiceId)
+        await fetchRecords(householdId)
+        console.error(recErr)
+        window.alert(
+          recErr?.message
+            ? `Error al guardar líneas: ${recErr.message}`
+            : 'Error al guardar los precios de la factura.',
+        )
+        return
+      }
+
+      try {
+        for (const line of validLines) {
+          const p = useProductStore.getState().products.find((x) => x.id === line.productId)
+          if (!p) continue
+          if (p.pendingRegistration) {
+            const { error: crErr } = await completeRegistration(
+              line.productId,
+              Math.max(1, Math.round(line.qty)),
+            )
+            if (crErr) throw crErr
+          } else {
+            const { error: invErr } = await addInventoryFromPurchase(line.productId, line.qty)
+            if (invErr) throw invErr
+          }
+        }
+      } catch (stockErr) {
+        console.error(stockErr)
+        window.alert(
+          'Los precios se guardaron en la factura, pero hubo un error al actualizar el inventario. Revisa el inventario y la lista "por registrar".',
+        )
+      }
+
+      await fetchRecords(householdId)
+      await useInvoiceStore.getState().fetchInvoices(householdId)
+
       setBatchForm((prev) => ({
         store: prev.store,
         date: prev.date,
@@ -317,6 +409,7 @@ function PendingRegistrationPanel({ householdId, products }) {
     <div className="space-y-4">
       <div className="flex justify-end">
         <button
+          type="button"
           onClick={() => {
             setShowBatchForm(!showBatchForm)
             setActiveFormId(null)
@@ -590,8 +683,7 @@ function PendingRegistrationPanel({ householdId, products }) {
           </p>
           <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
             Cuando marques un producto como &ldquo;Comprado&rdquo; en la lista de compras, aparecerá
-            aquí. También puedes usar &ldquo;Registrar factura&rdquo; para cargar varios productos del
-            mismo ticket.
+            aquí. Para un ticket completo, pulsa <span className="font-medium">Registrar factura</span>.
           </p>
         </div>
       ) : (
