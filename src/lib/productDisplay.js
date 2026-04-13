@@ -27,6 +27,21 @@ export function productMetaChipClassName(key) {
 /** Unidad de venta (ej. Kilogramos): línea bajo el nombre; distinta a marca/COD/contenido. */
 export const PRODUCT_DISPLAY_UNIT_CHIP_CLASS = `${CHIP_BASE} border-emerald-200/90 bg-emerald-50 text-emerald-800`
 
+/** Chips para Gastos: marca y tamaño del empaque; sin COD ni repetir unidad de venta (va en el subtítulo). */
+export function buildGastosProductMetaChips(product) {
+  const chips = []
+  if (product.brand) {
+    const b = toTitleCase(product.brand)
+    chips.push({ key: 'brand', label: b, desktopPrefix: 'Marca:', desktopValue: b })
+  }
+  if (product.contentAmount && product.contentUnit) {
+    const cu = ALL_UNITS_MAP[product.contentUnit]
+    const short = `${product.contentAmount}${cu?.abbreviation || product.contentUnit}`
+    chips.push({ key: 'content', label: short, desktopPrefix: 'Cant:', desktopValue: short })
+  }
+  return chips
+}
+
 export function buildProductMetaChips(product) {
   const chips = []
   if (product.brand) {

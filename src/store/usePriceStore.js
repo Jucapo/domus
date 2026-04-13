@@ -11,6 +11,7 @@ function mapRow(row) {
     store: row.store,
     date: row.recorded_date,
     invoiceId: row.invoice_id || null,
+    forThirdParty: row.for_third_party === true,
   }
 }
 
@@ -43,6 +44,7 @@ export const usePriceStore = create((set) => ({
         store: record.store,
         recorded_date: record.date,
         invoice_id: record.invoiceId ?? null,
+        for_third_party: record.forThirdParty === true,
       })
       .select()
       .single()
@@ -54,14 +56,19 @@ export const usePriceStore = create((set) => ({
   },
 
   updateRecord: async (recordId, record) => {
+    const payload = {
+      price: record.price,
+      quantity: record.quantity ?? 1,
+      store: record.store,
+      recorded_date: record.date,
+      ...(record.forThirdParty !== undefined && {
+        for_third_party: record.forThirdParty === true,
+      }),
+      ...(record.productId !== undefined && { product_id: record.productId }),
+    }
     const { data, error } = await supabase
       .from('price_records')
-      .update({
-        price: record.price,
-        quantity: record.quantity ?? 1,
-        store: record.store,
-        recorded_date: record.date,
-      })
+      .update(payload)
       .eq('id', recordId)
       .select()
       .single()

@@ -73,6 +73,7 @@ create table public.price_records (
   store text not null default '',
   recorded_date date not null default current_date,
   invoice_id uuid references public.invoices(id) on delete set null,
+  for_third_party boolean not null default false,
   created_at timestamptz not null default now()
 );
 

@@ -57,6 +57,8 @@ export function newBatchLine() {
     invoiceBarcode: '',
     /** Nombre en la factura (puede diferir del producto). */
     invoiceDesc: '',
+    /** No suma en gastos del mes / presupuesto. */
+    forThirdParty: false,
   }
 }
 

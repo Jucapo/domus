@@ -6,6 +6,7 @@ import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
 import { formatPrice, formatDate } from './preciosShared'
 import { toTitleCase } from '../lib/textCase'
+import { AlertDialog, ConfirmDialog } from '../components/AppDialogs'
 
 /** Registros de compra hechos producto por producto (sin factura agrupada). */
 export default function IndividualPurchasesHistory() {
@@ -64,7 +65,10 @@ export default function IndividualPurchasesHistory() {
     quantity: '',
     store: '',
     date: '',
+    forThirdParty: false,
   })
+  const [alertDialog, setAlertDialog] = useState({ open: false, message: '' })
+  const [deleteRecordId, setDeleteRecordId] = useState(null)
 
   const startEdit = (r) => {
     setEditingId(r.id)
@@ -73,6 +77,7 @@ export default function IndividualPurchasesHistory() {
       quantity: String(r.quantity),
       store: r.store,
       date: r.date,
+      forThirdParty: r.forThirdParty === true,
     })
   }
 
@@ -80,7 +85,10 @@ export default function IndividualPurchasesHistory() {
     const qty = parseFloat(String(editForm.quantity).replace(',', '.'))
     const unitPrice = parseFloat(String(editForm.price).replace(',', '.'))
     if (!Number.isFinite(qty) || qty <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
-      window.alert('Cantidad y precio unitario deben ser válidos.')
+      setAlertDialog({
+        open: true,
+        message: 'Cantidad y precio unitario deben ser válidos.',
+      })
       return
     }
     const { error } = await updateRecord(recordId, {
@@ -88,6 +96,7 @@ export default function IndividualPurchasesHistory() {
       quantity: qty,
       store: editForm.store.trim(),
       date: editForm.date,
+      forThirdParty: editForm.forThirdParty,
     })
     if (!error) {
       setEditingId(null)
@@ -95,8 +104,10 @@ export default function IndividualPurchasesHistory() {
     }
   }
 
-  const handleDelete = async (recordId) => {
-    if (!window.confirm('¿Eliminar este registro de compra del historial?')) return
+  const confirmDeleteRecord = async () => {
+    const recordId = deleteRecordId
+    if (!recordId) return
+    setDeleteRecordId(null)
     const { error } = await deleteRecord(recordId)
     if (!error && householdId) await fetchRecords(householdId)
   }
@@ -122,6 +133,21 @@ export default function IndividualPurchasesHistory() {
 
   return (
     <div className="space-y-3">
+      <AlertDialog
+        open={alertDialog.open}
+        message={alertDialog.message}
+        onClose={() => setAlertDialog({ open: false, message: '' })}
+      />
+      <ConfirmDialog
+        open={deleteRecordId != null}
+        title="Eliminar registro"
+        message="¿Eliminar este registro de compra del historial?"
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setDeleteRecordId(null)}
+        onConfirm={confirmDeleteRecord}
+      />
       <div className="relative">
         <Search
           size={16}
@@ -139,7 +165,7 @@ export default function IndividualPurchasesHistory() {
       </div>
 
       <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain rounded-xl border border-slate-200 bg-white [-webkit-overflow-scrolling:touch]">
-      <table className="w-full min-w-[720px] border-collapse text-sm">
+      <table className="w-full min-w-[780px] border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase text-slate-500">
             <th className="px-3 py-2 pl-4">Producto</th>
@@ -148,6 +174,7 @@ export default function IndividualPurchasesHistory() {
             <th className="px-3 py-2">Cant.</th>
             <th className="px-3 py-2">P. unit.</th>
             <th className="px-3 py-2">Total línea</th>
+            <th className="px-3 py-2 text-center normal-case">Tercero</th>
             <th className="px-3 py-2 pr-4 text-right">Acciones</th>
           </tr>
         </thead>
@@ -205,6 +232,18 @@ export default function IndividualPurchasesHistory() {
                         ),
                       )}
                     </td>
+                    <td className="px-3 py-2 align-top text-center">
+                      <input
+                        type="checkbox"
+                        checked={editForm.forThirdParty}
+                        onChange={(e) =>
+                          setEditForm((f) => ({ ...f, forThirdParty: e.target.checked }))
+                        }
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                        title="Para tercero"
+                        aria-label="Para tercero"
+                      />
+                    </td>
                     <td className="px-3 py-2 pr-4 text-right align-top">
                       <button
                         type="button"
@@ -231,6 +270,9 @@ export default function IndividualPurchasesHistory() {
                     <td className="px-3 py-2 font-medium text-slate-900">
                       {formatPrice(Math.round(lineTotal))}
                     </td>
+                    <td className="px-3 py-2 text-center text-xs text-slate-500">
+                      {r.forThirdParty ? 'Sí' : '—'}
+                    </td>
                     <td className="px-3 py-2 pr-4">
                       <div className="flex flex-row items-center justify-end gap-1">
                         <button
@@ -244,7 +286,7 @@ export default function IndividualPurchasesHistory() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(r.id)}
+                          onClick={() => setDeleteRecordId(r.id)}
                           title="Eliminar"
                           aria-label="Eliminar"
                           className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
@@ -261,7 +303,7 @@ export default function IndividualPurchasesHistory() {
           {filteredRecords.length === 0 ? (
             <tr>
               <td
-                colSpan={7}
+                colSpan={8}
                 className="px-4 py-8 text-center text-sm text-slate-500"
               >
                 Ningún registro coincide con la búsqueda.

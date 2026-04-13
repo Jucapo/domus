@@ -1,5 +1,16 @@
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
+import { useProductStore } from './useProductStore'
+import { usePriceStore } from './usePriceStore'
+
+/** Más reciente primero: fecha de factura, luego creación, luego id. */
+function compareInvoicesByDateDesc(a, b) {
+  const d = String(b.invoiceDate).localeCompare(String(a.invoiceDate))
+  if (d !== 0) return d
+  const c = String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+  if (c !== 0) return c
+  return String(b.id).localeCompare(String(a.id))
+}
 
 function mapInvoiceRow(row) {
   const lines = (row.price_records || [])
@@ -12,6 +23,7 @@ function mapInvoiceRow(row) {
     quantity: Number(r.quantity ?? 1),
     store: r.store,
     date: r.recorded_date,
+    forThirdParty: r.for_third_party === true,
   }))
   return {
     id: row.id,
@@ -46,15 +58,19 @@ export const useInvoiceStore = create((set) => ({
           price,
           quantity,
           store,
-          recorded_date
+          recorded_date,
+          for_third_party
         )
       `,
       )
       .eq('household_id', householdId)
+      .order('invoice_date', { ascending: false })
       .order('created_at', { ascending: false })
 
     if (!error && data) {
-      set({ invoices: data.map(mapInvoiceRow) })
+      set({
+        invoices: data.map(mapInvoiceRow).sort(compareInvoicesByDateDesc),
+      })
     }
     set({ loading: false })
   },
@@ -75,7 +91,9 @@ export const useInvoiceStore = create((set) => ({
       return { data: null, error }
     }
     const inv = mapInvoiceRow({ ...data, price_records: [] })
-    set((state) => ({ invoices: [inv, ...state.invoices] }))
+    set((state) => ({
+      invoices: [...state.invoices, inv].sort(compareInvoicesByDateDesc),
+    }))
     return { data: inv, error: null }
   },
 
@@ -105,16 +123,36 @@ export const useInvoiceStore = create((set) => ({
   },
 
   /**
-   * Quita el vínculo en price_records y borra la cabecera.
-   * Los registros de precio se conservan (siguen en histórico).
+   * Borra la factura y sus price_records, y revierte el inventario añadido al crearla.
+   * @param {{ revertInventory?: boolean }} options — si `revertInventory` es false (rollback antes de sumar stock), solo borra cabecera y líneas en BD.
    */
-  deleteInvoice: async (invoiceId) => {
-    await supabase.from('price_records').update({ invoice_id: null }).eq('invoice_id', invoiceId)
+  deleteInvoice: async (invoiceId, options = {}) => {
+    const { revertInventory = true } = options
+    const inv = get().invoices.find((i) => i.id === invoiceId)
+    const lines = inv?.lines ? [...inv.lines] : []
+
+    if (revertInventory) {
+      for (const line of lines) {
+        const { error: invErr } = await useProductStore
+          .getState()
+          .subtractInventoryFromPurchase(line.productId, line.quantity)
+        if (invErr) return { error: invErr }
+      }
+    }
+
+    const { error: delRecErr } = await supabase
+      .from('price_records')
+      .delete()
+      .eq('invoice_id', invoiceId)
+    if (delRecErr) return { error: delRecErr }
 
     const { error } = await supabase.from('invoices').delete().eq('id', invoiceId)
     if (!error) {
       set((state) => ({
         invoices: state.invoices.filter((i) => i.id !== invoiceId),
+      }))
+      usePriceStore.setState((state) => ({
+        records: state.records.filter((r) => r.invoiceId !== invoiceId),
       }))
     }
     return { error }

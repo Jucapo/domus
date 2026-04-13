@@ -79,9 +79,14 @@ function HistoryTab({ householdId }) {
       p.category.toLowerCase().includes(search.toLowerCase()),
   )
 
+  const filteredWithHistory = useMemo(
+    () => filtered.filter((p) => (recordsByProduct[p.id] || []).length > 0),
+    [filtered, recordsByProduct],
+  )
+
   const historyCategoryNames = useMemo(() => {
     const counts = new Map()
-    for (const p of filtered) {
+    for (const p of filteredWithHistory) {
       counts.set(p.category, (counts.get(p.category) || 0) + 1)
     }
     return [...counts.keys()].sort((a, b) => {
@@ -89,7 +94,7 @@ function HistoryTab({ householdId }) {
       if (diff !== 0) return diff
       return a.localeCompare(b)
     })
-  }, [filtered])
+  }, [filteredWithHistory])
 
   const categoryMetaByName = useMemo(() => {
     const map = new Map()
@@ -122,9 +127,14 @@ function HistoryTab({ householdId }) {
 
       <div className="space-y-5 md:space-y-6">
         {historyCategoryNames.map((category) => {
-          const categoryProducts = filtered
+          const categoryProducts = filteredWithHistory
             .filter((p) => p.category === category)
-            .sort((a, b) => a.name.localeCompare(b.name))
+            .sort((a, b) => {
+              const na = (recordsByProduct[a.id] || []).length
+              const nb = (recordsByProduct[b.id] || []).length
+              if (nb !== na) return nb - na
+              return a.name.localeCompare(b.name)
+            })
           const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
           const productAccent =
             CATEGORY_COLOR_PRODUCT_ACCENT_MAP[meta.color] || 'border-l-4 border-l-slate-500'
@@ -254,6 +264,13 @@ function HistoryTab({ householdId }) {
             </p>
           </div>
         )}
+        {filtered.length > 0 && filteredWithHistory.length === 0 && (
+          <div className="py-12 text-center">
+            <p className="text-sm text-slate-500">
+              Ningún producto con búsqueda actual tiene registros de precio todavía.
+            </p>
+          </div>
+        )}
       </div>
     </>
   )
@@ -279,6 +296,7 @@ function ExpandedHistory({ product, records, householdId }) {
     price: '',
     store: '',
     date: new Date().toISOString().split('T')[0],
+    forThirdParty: false,
   })
 
   const [editingId, setEditingId] = useState(null)
@@ -287,6 +305,7 @@ function ExpandedHistory({ product, records, householdId }) {
     price: '',
     store: '',
     date: '',
+    forThirdParty: false,
   })
 
   const startEdit = (record) => {
@@ -297,6 +316,7 @@ function ExpandedHistory({ product, records, householdId }) {
       price: lineTotalPaid(record),
       store: record.store,
       date: record.date,
+      forThirdParty: record.forThirdParty === true,
     })
   }
 
@@ -315,6 +335,7 @@ function ExpandedHistory({ product, records, householdId }) {
       quantity: qty,
       store: editForm.store.trim(),
       date: editForm.date,
+      forThirdParty: editForm.forThirdParty,
     })
     setEditingId(null)
   }
@@ -331,12 +352,14 @@ function ExpandedHistory({ product, records, householdId }) {
       quantity: qty,
       store: form.store.trim(),
       date: form.date,
+      forThirdParty: form.forThirdParty,
     })
     setForm({
       quantity: '1',
       price: '',
       store: '',
       date: new Date().toISOString().split('T')[0],
+      forThirdParty: false,
     })
     setShowForm(false)
   }
@@ -454,6 +477,17 @@ function ExpandedHistory({ product, records, householdId }) {
               onChange={(e) => setForm({ ...form, date: e.target.value })}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
             />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.forThirdParty}
+                onChange={(e) => setForm({ ...form, forThirdParty: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+              />
+              Para tercero (no suma en gastos del mes)
+            </label>
             <button
               type="submit"
               className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
@@ -540,20 +574,33 @@ function ExpandedHistory({ product, records, householdId }) {
                         className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                       />
                     </div>
-                    <div className="flex items-end gap-2 lg:col-span-1">
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="submit"
-                        className="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-                      >
-                        Guardar
-                      </button>
+                    <div className="flex flex-col justify-end gap-2 lg:col-span-1">
+                      <label className="flex items-center gap-2 text-[10px] text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={editForm.forThirdParty}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, forThirdParty: e.target.checked })
+                          }
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600"
+                        />
+                        Para tercero
+                      </label>
+                      <div className="flex items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 rounded-lg bg-indigo-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                        >
+                          Guardar
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <p className="mt-1.5 text-[10px] text-slate-400">
@@ -582,11 +629,16 @@ function ExpandedHistory({ product, records, householdId }) {
                     Compra: {Number(record.quantity)}{' '}
                     {unit?.abbreviation || ''} · Total {formatPrice(record.price * record.quantity)}
                   </p>
-                  <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <p className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
                     <MapPin size={11} className="shrink-0" />
                     <span className="truncate">{record.store}</span>
                     <span className="text-slate-300">·</span>
                     {formatDate(record.date)}
+                    {record.forThirdParty ? (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                        Tercero
+                      </span>
+                    ) : null}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">

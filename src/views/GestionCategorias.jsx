@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
 import { CATEGORY_COLOR_OPTIONS, CATEGORY_ICON_OPTIONS, CATEGORY_ICON_MAP, CATEGORY_COLOR_MAP } from '../data/category_styles'
+import { AlertDialog } from '../components/AppDialogs'
 
 export default function GestionCategorias() {
   const navigate = useNavigate()
@@ -44,6 +45,7 @@ export default function GestionCategorias() {
   /** null | { mode:'new', icon, color } | { mode:'edit', cat, icon, color, syncWithNameEdit: boolean } */
   const [styleModal, setStyleModal] = useState(null)
   const [modalTab, setModalTab] = useState('icons')
+  const [blockAlert, setBlockAlert] = useState({ open: false, message: '' })
 
   useEffect(() => {
     if (!styleModal) return
@@ -139,9 +141,10 @@ export default function GestionCategorias() {
   const handleDelete = (cat) => {
     const count = productCountByCategory[cat.name] || 0
     if (count > 0) {
-      alert(
-        `No puedes eliminar "${cat.name}" porque tiene ${count} producto(s) asociado(s). Mueve los productos a otra categoría primero.`,
-      )
+      setBlockAlert({
+        open: true,
+        message: `No puedes eliminar "${cat.name}" porque tiene ${count} producto(s) asociado(s). Mueve los productos a otra categoría primero.`,
+      })
       return
     }
     deleteCategory(cat.id)
@@ -149,6 +152,12 @@ export default function GestionCategorias() {
 
   return (
     <div>
+      <AlertDialog
+        open={blockAlert.open}
+        title="No se puede eliminar"
+        message={blockAlert.message}
+        onClose={() => setBlockAlert({ open: false, message: '' })}
+      />
       <div className="mb-6 flex items-center gap-3 md:mb-8">
         <button
           onClick={() => navigate(-1)}

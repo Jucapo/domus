@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Facturas extraídas para scripts locales (ZIP → PDF/XML)
+tmp-d1-invoices/
+tmp-canal-invoices/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

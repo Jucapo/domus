@@ -1,8 +1,18 @@
 import { useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Trash2, Search, ShoppingBag, ClipboardList, X, FileUp } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  Search,
+  ShoppingBag,
+  ClipboardList,
+  ClipboardPlus,
+  X,
+  FileUp,
+} from 'lucide-react'
 import CategorySection from '../components/CategorySection'
 import BlockingLoadingOverlay from '../components/BlockingLoadingOverlay'
+import { AlertDialog, ConfirmDialog } from '../components/AppDialogs'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
@@ -111,13 +121,19 @@ function PendingRegistrationPanel({ householdId, products }) {
     price: '',
     store: '',
     date: new Date().toISOString().split('T')[0],
+    forThirdParty: false,
   })
 
   const [showBatchForm, setShowBatchForm] = useState(false)
+  const [showIndividualForm, setShowIndividualForm] = useState(false)
+  const [individualSaving, setIndividualSaving] = useState(false)
   const [batchSaving, setBatchSaving] = useState(false)
   const [batchPdfSourceId, setBatchPdfSourceId] = useState('canalaveral')
   const [pdfImportStatus, setPdfImportStatus] = useState({ type: 'idle', message: '' })
   const batchPdfInputRef = useRef(null)
+  const batchXmlInputRef = useRef(null)
+  const [alertDialog, setAlertDialog] = useState({ open: false, message: '', title: '' })
+  const [mismatchConfirm, setMismatchConfirm] = useState({ open: false })
   const [batchForm, setBatchForm] = useState(() => ({
     store: '',
     date: new Date().toISOString().split('T')[0],
@@ -125,54 +141,120 @@ function PendingRegistrationPanel({ householdId, products }) {
     lines: [newBatchLine()],
   }))
 
+  const emptyIndividualForm = () => ({
+    productId: '',
+    quantity: '1',
+    price: '',
+    store: '',
+    date: new Date().toISOString().split('T')[0],
+    forThirdParty: false,
+  })
+
+  const [individualForm, setIndividualForm] = useState(() => emptyIndividualForm())
+
   const startForm = (product) => {
     setActiveFormId(product.id)
     setShowBatchForm(false)
+    setShowIndividualForm(false)
     setForm({
       quantity: '1',
       price: '',
       store: '',
       date: new Date().toISOString().split('T')[0],
+      forThirdParty: false,
     })
   }
 
-  const handleSubmit = async (e, product) => {
-    e.preventDefault()
-    const unitPrice = paidToUnitPrice(form.price, form.quantity)
-    if (!unitPrice || !form.store.trim()) return
-    const qty = parseFloat(String(form.quantity).replace(',', '.')) || 1
+  /** Un producto: precio en histórico + stock (igual que al cerrar una compra desde la lista). */
+  const persistSinglePurchase = async (product, fields) => {
+    const unitPrice = paidToUnitPrice(fields.price, fields.quantity)
+    if (!unitPrice || !fields.store.trim()) return { ok: false }
+    const qty = parseFloat(String(fields.quantity).replace(',', '.')) || 1
 
     const { error: recErr } = await addRecord({
       productId: product.id,
       householdId,
       price: unitPrice,
       quantity: qty,
-      store: form.store.trim(),
-      date: form.date,
+      store: fields.store.trim(),
+      date: fields.date,
+      forThirdParty: fields.forThirdParty,
     })
     if (recErr) {
-      window.alert(
-        recErr.message
+      setAlertDialog({
+        open: true,
+        title: 'No se pudo guardar',
+        message: recErr.message
           ? `No se pudo guardar el precio: ${recErr.message}`
           : 'No se pudo guardar el precio. Revisa la conexión.',
-      )
-      return
+      })
+      return { ok: false }
     }
 
-    const { error: regErr } = await completeRegistration(
-      product.id,
-      Math.max(1, Math.round(qty)),
-    )
-    if (regErr) {
-      window.alert(
-        regErr.message
-          ? `Precio guardado, pero al actualizar inventario: ${regErr.message}`
-          : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
-      )
-      return
+    const qInv = Math.max(1, Math.round(qty))
+    if (product.pendingRegistration) {
+      const { error: regErr } = await completeRegistration(product.id, qInv)
+      if (regErr) {
+        setAlertDialog({
+          open: true,
+          title: 'Inventario',
+          message: regErr.message
+            ? `Precio guardado, pero al actualizar inventario: ${regErr.message}`
+            : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
+        })
+        return { ok: false }
+      }
+    } else {
+      const { error: invErr } = await addInventoryFromPurchase(product.id, qty)
+      if (invErr) {
+        setAlertDialog({
+          open: true,
+          title: 'Inventario',
+          message: invErr.message
+            ? `Precio guardado, pero al actualizar inventario: ${invErr.message}`
+            : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
+        })
+        return { ok: false }
+      }
     }
 
-    setActiveFormId(null)
+    return { ok: true }
+  }
+
+  const handleSubmit = async (e, product) => {
+    e.preventDefault()
+    const { ok } = await persistSinglePurchase(product, form)
+    if (ok) {
+      setActiveFormId(null)
+      await fetchRecords(householdId)
+    }
+  }
+
+  const handleIndividualSubmit = async (e) => {
+    e.preventDefault()
+    if (individualSaving) return
+    if (!individualForm.productId) {
+      setAlertDialog({
+        open: true,
+        title: 'Producto',
+        message: 'Elige un producto del inventario.',
+      })
+      return
+    }
+    const product = householdProducts.find((p) => p.id === individualForm.productId)
+    if (!product) return
+
+    setIndividualSaving(true)
+    try {
+      const { ok } = await persistSinglePurchase(product, individualForm)
+      if (ok) {
+        setShowIndividualForm(false)
+        setIndividualForm(emptyIndividualForm())
+        await fetchRecords(householdId)
+      }
+    } finally {
+      setIndividualSaving(false)
+    }
   }
 
   const batchLinesSum = useMemo(() => {
@@ -271,6 +353,170 @@ function PendingRegistrationPanel({ householdId, products }) {
     }
   }
 
+  const handleBatchXmlChange = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const looksXml =
+      file.type === 'application/xml' ||
+      file.type === 'text/xml' ||
+      file.name?.toLowerCase().endsWith('.xml')
+    if (!looksXml) {
+      setPdfImportStatus({ type: 'error', message: 'El archivo debe ser XML (factura electrónica).' })
+      return
+    }
+    setPdfImportStatus({ type: 'loading', message: 'Leyendo XML…', progress: 0 })
+    try {
+      const xmlText = await file.text()
+      const {
+        parseElectronicInvoiceXmlForBatch,
+        applyNameFallbackToBatchLines,
+      } = await import('../lib/canalXmlImport')
+      const { items, date, invoiceTotal, error: xmlErr } =
+        parseElectronicInvoiceXmlForBatch(xmlText)
+      if (xmlErr || items.length === 0) {
+        setPdfImportStatus({
+          type: 'error',
+          message: xmlErr || 'No se reconocieron líneas en este XML.',
+        })
+        return
+      }
+      const {
+        buildBarcodeToProductIdMap,
+        parsedItemsToBatchLines,
+      } = await import('../lib/invoicePdfImport')
+      const barcodeMap = buildBarcodeToProductIdMap(householdProducts)
+      let lines = parsedItemsToBatchLines(items, barcodeMap, newBatchLine)
+      lines = applyNameFallbackToBatchLines(lines, householdProducts)
+      const matched = lines.filter((l) => l.productId).length
+      setBatchForm((prev) => ({
+        ...prev,
+        date: date || prev.date,
+        invoiceTotal:
+          invoiceTotal != null ? String(invoiceTotal) : prev.invoiceTotal,
+        lines,
+      }))
+      setPdfImportStatus({
+        type: 'ok',
+        message: `${items.length} líneas desde XML (DIAN) · ${matched} con producto por código o nombre · suele cuadrar mejor que solo PDF`,
+      })
+    } catch (err) {
+      setPdfImportStatus({
+        type: 'error',
+        message: err?.message ? String(err.message) : 'No se pudo leer el XML.',
+      })
+    }
+  }
+
+  const performBatchSave = async () => {
+    const validLines = []
+    for (const line of batchForm.lines) {
+      if (!line.productId) continue
+      const qty = parseFloat(String(line.quantity).replace(',', '.'))
+      const unitPrice = paidToUnitPrice(line.price, line.quantity)
+      const lineTotal = parseMoneyPositive(line.price)
+      if (!unitPrice || !qty || qty <= 0 || lineTotal == null) continue
+      validLines.push({
+        productId: line.productId,
+        qty,
+        unitPrice,
+        lineTotal,
+        forThirdParty: line.forThirdParty === true,
+      })
+    }
+
+    if (validLines.length === 0) return
+
+    setBatchSaving(true)
+    try {
+      const totalCop =
+        invoiceTotalParsed != null ? Math.round(invoiceTotalParsed) : null
+      const { data: inv, error: invErr } = await createInvoice({
+        householdId,
+        store: batchForm.store.trim(),
+        invoiceDate: batchForm.date,
+        totalCop,
+      })
+      if (invErr || !inv) {
+        setAlertDialog({
+          open: true,
+          title: 'Factura',
+          message:
+            invErr?.message || 'No se pudo crear el registro de factura. Inténtalo de nuevo.',
+        })
+        return
+      }
+      const invoiceId = inv.id
+
+      try {
+        for (const line of validLines) {
+          const { error: recErr } = await addRecord({
+            productId: line.productId,
+            householdId,
+            price: line.unitPrice,
+            quantity: line.qty,
+            store: batchForm.store.trim(),
+            date: batchForm.date,
+            invoiceId,
+            forThirdParty: line.forThirdParty,
+          })
+          if (recErr) throw recErr
+        }
+      } catch (recErr) {
+        await deleteInvoice(invoiceId, { revertInventory: false })
+        await fetchRecords(householdId)
+        console.error(recErr)
+        setAlertDialog({
+          open: true,
+          title: 'Error al guardar',
+          message: recErr?.message
+            ? `Error al guardar líneas: ${recErr.message}`
+            : 'Error al guardar los precios de la factura.',
+        })
+        return
+      }
+
+      try {
+        for (const line of validLines) {
+          const p = useProductStore.getState().products.find((x) => x.id === line.productId)
+          if (!p) continue
+          if (p.pendingRegistration) {
+            const { error: crErr } = await completeRegistration(
+              line.productId,
+              Math.max(1, Math.round(line.qty)),
+            )
+            if (crErr) throw crErr
+          } else {
+            const { error: invErr2 } = await addInventoryFromPurchase(line.productId, line.qty)
+            if (invErr2) throw invErr2
+          }
+        }
+      } catch (stockErr) {
+        console.error(stockErr)
+        setAlertDialog({
+          open: true,
+          title: 'Inventario',
+          message:
+            'Los precios se guardaron en la factura, pero hubo un error al actualizar el inventario. Revisa el inventario y la lista "por registrar".',
+        })
+      }
+
+      await fetchRecords(householdId)
+      await useInvoiceStore.getState().fetchInvoices(householdId)
+
+      setBatchForm((prev) => ({
+        store: prev.store,
+        date: prev.date,
+        invoiceTotal: '',
+        lines: [newBatchLine()],
+      }))
+      setPdfImportStatus({ type: 'idle', message: '' })
+      setShowBatchForm(false)
+    } finally {
+      setBatchSaving(false)
+    }
+  }
+
   const handleBatchSubmit = async (e) => {
     e.preventDefault()
     if (!batchForm.store.trim() || batchSaving) return
@@ -290,93 +536,13 @@ function PendingRegistrationPanel({ householdId, products }) {
     const sumRounded = Math.round(validLines.reduce((a, l) => a + l.lineTotal, 0))
     if (
       invoiceTotalParsed != null &&
-      sumRounded !== Math.round(invoiceTotalParsed) &&
-      !window.confirm(
-        `La suma de las líneas (${formatPrice(sumRounded)}) no coincide con el total de la factura (${formatPrice(invoiceTotalParsed)}). ¿Guardar de todos modos?`,
-      )
+      sumRounded !== Math.round(invoiceTotalParsed)
     ) {
+      setMismatchConfirm({ open: true, sumRounded, total: Math.round(invoiceTotalParsed) })
       return
     }
 
-    setBatchSaving(true)
-    try {
-      const totalCop =
-        invoiceTotalParsed != null ? Math.round(invoiceTotalParsed) : null
-      const { data: inv, error: invErr } = await createInvoice({
-        householdId,
-        store: batchForm.store.trim(),
-        invoiceDate: batchForm.date,
-        totalCop,
-      })
-      if (invErr || !inv) {
-        window.alert(
-          invErr?.message || 'No se pudo crear el registro de factura. Inténtalo de nuevo.',
-        )
-        return
-      }
-      const invoiceId = inv.id
-
-      try {
-        for (const line of validLines) {
-          const { error: recErr } = await addRecord({
-            productId: line.productId,
-            householdId,
-            price: line.unitPrice,
-            quantity: line.qty,
-            store: batchForm.store.trim(),
-            date: batchForm.date,
-            invoiceId,
-          })
-          if (recErr) throw recErr
-        }
-      } catch (recErr) {
-        await deleteInvoice(invoiceId)
-        await fetchRecords(householdId)
-        console.error(recErr)
-        window.alert(
-          recErr?.message
-            ? `Error al guardar líneas: ${recErr.message}`
-            : 'Error al guardar los precios de la factura.',
-        )
-        return
-      }
-
-      try {
-        for (const line of validLines) {
-          const p = useProductStore.getState().products.find((x) => x.id === line.productId)
-          if (!p) continue
-          if (p.pendingRegistration) {
-            const { error: crErr } = await completeRegistration(
-              line.productId,
-              Math.max(1, Math.round(line.qty)),
-            )
-            if (crErr) throw crErr
-          } else {
-            const { error: invErr } = await addInventoryFromPurchase(line.productId, line.qty)
-            if (invErr) throw invErr
-          }
-        }
-      } catch (stockErr) {
-        console.error(stockErr)
-        window.alert(
-          'Los precios se guardaron en la factura, pero hubo un error al actualizar el inventario. Revisa el inventario y la lista "por registrar".',
-        )
-      }
-
-      await fetchRecords(householdId)
-      await useInvoiceStore.getState().fetchInvoices(householdId)
-
-      setBatchForm((prev) => ({
-        store: prev.store,
-        date: prev.date,
-        invoiceTotal: '',
-        lines: [newBatchLine()],
-      }))
-      setPdfImportStatus({ type: 'idle', message: '' })
-      setShowBatchForm(false)
-    } finally {
-      setBatchSaving(false)
-    }
+    await performBatchSave()
   }
 
   const allCategories = useCategoryStore((s) => s.categories)
@@ -414,24 +580,62 @@ function PendingRegistrationPanel({ householdId, products }) {
   const { toggleCategory: togglePendingCategory, isCategoryCollapsed: isPendingCategoryCollapsed } =
     useCategoryAccordion(householdId, 'precios-pending')
 
+  const individualSelectedProduct = useMemo(
+    () => householdProducts.find((p) => p.id === individualForm.productId),
+    [householdProducts, individualForm.productId],
+  )
+  const individualUnit = individualSelectedProduct
+    ? ALL_UNITS_MAP[individualSelectedProduct.displayUnit]
+    : null
+
   return (
     <div className="space-y-4">
       <BlockingLoadingOverlay
-        open={pdfImportStatus.type === 'loading' || batchSaving}
-        title={batchSaving ? 'Guardando factura…' : 'Leyendo PDF…'}
+        open={pdfImportStatus.type === 'loading' || batchSaving || individualSaving}
+        title={
+          batchSaving
+            ? 'Guardando factura…'
+            : individualSaving
+              ? 'Registrando compra…'
+              : String(pdfImportStatus.message || '').includes('XML')
+                ? 'Leyendo XML…'
+                : 'Leyendo PDF…'
+        }
         message={
           batchSaving
             ? 'Creando la factura y los registros de precio. Espera un momento.'
-            : 'Extrayendo texto del PDF…'
+            : individualSaving
+              ? 'Guardando precio e inventario.'
+              : String(pdfImportStatus.message || '').includes('XML')
+                ? 'Parseando factura electrónica UBL…'
+                : 'Extrayendo texto del PDF…'
         }
-        indeterminate={batchSaving}
-        progress={batchSaving ? undefined : pdfImportStatus.progress}
+        indeterminate={batchSaving || individualSaving}
+        progress={batchSaving || individualSaving ? undefined : pdfImportStatus.progress}
       />
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setShowIndividualForm((v) => !v)
+            setShowBatchForm(false)
+            setActiveFormId(null)
+            setPdfImportStatus({ type: 'idle', message: '' })
+          }}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium shadow-sm transition-colors ${
+            showIndividualForm
+              ? 'border-indigo-400 bg-indigo-50 text-indigo-900 hover:bg-indigo-100'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <ClipboardPlus size={15} />
+          Registro individual
+        </button>
         <button
           type="button"
           onClick={() => {
             setShowBatchForm(!showBatchForm)
+            setShowIndividualForm(false)
             setActiveFormId(null)
             setPdfImportStatus({ type: 'idle', message: '' })
           }}
@@ -452,15 +656,16 @@ function PendingRegistrationPanel({ householdId, products }) {
           </p>
           <p className="mb-4 text-xs text-slate-500">
             Una fila por producto. La suma de &ldquo;Total línea&rdquo; debe coincidir con el total de la
-            factura (opcional pero recomendado). Puedes adjuntar el PDF: se rellenan cantidad y total por
-            línea; el producto solo se enlaza si el código de barras del PDF coincide con uno de tu
-            inventario (el nombre en la factura puede ser distinto).
+            factura (opcional pero recomendado). Puedes adjuntar el <span className="font-medium">PDF</span>{' '}
+            o el <span className="font-medium">XML</span> electrónico (DIAN): el XML suele traer todas las
+            líneas y totales con menos diferencias que el PDF. El producto se enlaza por código de barras o,
+            en XML, si el nombre normalizado coincide con el de tu inventario.
           </p>
 
           <div className="mb-4 flex flex-col gap-3 rounded-lg border border-violet-100 bg-white/90 p-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div className="min-w-[180px] flex-1">
               <label className="mb-1 block text-xs font-medium text-slate-500">
-                Formato de la factura (PDF)
+                Formato al leer PDF
               </label>
               <select
                 value={batchPdfSourceId}
@@ -474,13 +679,20 @@ function PendingRegistrationPanel({ householdId, products }) {
                 ))}
               </select>
             </div>
-            <div>
+            <div className="flex flex-wrap gap-2">
               <input
                 ref={batchPdfInputRef}
                 type="file"
                 accept="application/pdf,.pdf"
                 className="hidden"
                 onChange={handleBatchPdfChange}
+              />
+              <input
+                ref={batchXmlInputRef}
+                type="file"
+                accept="application/xml,text/xml,.xml"
+                className="hidden"
+                onChange={handleBatchXmlChange}
               />
               <button
                 type="button"
@@ -489,7 +701,16 @@ function PendingRegistrationPanel({ householdId, products }) {
                 className="inline-flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-60"
               >
                 <FileUp size={16} />
-                {pdfImportStatus.type === 'loading' ? 'Leyendo…' : 'Adjuntar factura PDF'}
+                {pdfImportStatus.type === 'loading' ? 'Leyendo…' : 'Adjuntar PDF'}
+              </button>
+              <button
+                type="button"
+                disabled={pdfImportStatus.type === 'loading'}
+                onClick={() => batchXmlInputRef.current?.click()}
+                className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
+              >
+                <FileUp size={16} />
+                Adjuntar XML
               </button>
             </div>
             {pdfImportStatus.type !== 'idle' ? (
@@ -543,12 +764,15 @@ function PendingRegistrationPanel({ householdId, products }) {
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-violet-100 bg-white/80">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   <th className="px-2 py-2 pl-3">Producto</th>
                   <th className="w-28 px-2 py-2">Cantidad</th>
                   <th className="w-36 px-2 py-2">Total línea (COP)</th>
+                  <th className="w-[7.5rem] px-2 py-2 text-center normal-case" title="No suma en Gastos del mes">
+                    Tercero
+                  </th>
                   <th className="w-12 px-2 py-2 pr-3" />
                 </tr>
               </thead>
@@ -613,6 +837,18 @@ function PendingRegistrationPanel({ householdId, products }) {
                           value={line.price}
                           onChange={(e) => updateBatchLine(line.id, { price: e.target.value })}
                           className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
+                        />
+                      </td>
+                      <td className="px-2 py-2 align-middle text-center">
+                        <input
+                          type="checkbox"
+                          checked={line.forThirdParty === true}
+                          onChange={(e) =>
+                            updateBatchLine(line.id, { forThirdParty: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          title="Para tercero: no suma en gastos del mes"
+                          aria-label="Para tercero"
                         />
                       </td>
                       <td className="px-2 py-2 pr-3 text-right align-middle">
@@ -693,6 +929,138 @@ function PendingRegistrationPanel({ householdId, products }) {
         </form>
       )}
 
+      {showIndividualForm && (
+        <form
+          onSubmit={handleIndividualSubmit}
+          className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 md:p-4"
+        >
+          <p className="mb-1 text-sm font-medium text-slate-700">
+            Un solo producto (sin pasar por &ldquo;por comprar&rdquo;)
+          </p>
+          <p className="mb-4 text-xs text-slate-500">
+            Elige un producto de tu inventario, cantidad y total pagado. Se guarda el precio en el
+            histórico y se suma al stock como al registrar desde la lista.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Producto</label>
+              <select
+                value={individualForm.productId}
+                onChange={(e) =>
+                  setIndividualForm((prev) => ({ ...prev, productId: e.target.value }))
+                }
+                className="w-full max-w-xl rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+              >
+                <option value="">Seleccionar…</option>
+                {householdProducts.map((prod) => (
+                  <option key={prod.id} value={prod.id}>
+                    {toTitleCase(prod.name)}
+                    {prod.category ? ` (${prod.category})` : ''}
+                    {prod.pendingRegistration ? ' · por registrar' : ''}
+                  </option>
+                ))}
+              </select>
+              {householdProducts.length === 0 ? (
+                <p className="mt-1 text-xs text-amber-700">
+                  No hay productos en este hogar. Añádelos en Gestión.
+                </p>
+              ) : null}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">
+                  Cantidad comprada
+                </label>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    value={individualForm.quantity}
+                    onChange={(e) =>
+                      setIndividualForm((prev) => ({ ...prev, quantity: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                  />
+                  {individualUnit ? (
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {individualUnit.abbreviation}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">
+                  Total pagado (COP)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="$"
+                  value={individualForm.price}
+                  onChange={(e) =>
+                    setIndividualForm((prev) => ({ ...prev, price: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  Guardamos precio por unidad (total ÷ cantidad)
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-500">Fecha</label>
+                <input
+                  type="date"
+                  value={individualForm.date}
+                  onChange={(e) =>
+                    setIndividualForm((prev) => ({ ...prev, date: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+            <StoreField
+              label="Lugar de compra"
+              value={individualForm.store}
+              onChange={(v) => setIndividualForm((prev) => ({ ...prev, store: v }))}
+              datalistId="individual-purchase-stores"
+              historyStores={allStores}
+            />
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={individualForm.forThirdParty}
+                onChange={(e) =>
+                  setIndividualForm((prev) => ({ ...prev, forThirdParty: e.target.checked }))
+                }
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Para tercero (no suma en gastos del mes; sí queda en histórico)
+            </label>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-indigo-100 pt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIndividualForm(false)
+                  setIndividualForm(emptyIndividualForm())
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+              >
+                Cerrar
+              </button>
+              <button
+                type="submit"
+                disabled={individualSaving || householdProducts.length === 0}
+                className="min-w-[140px] rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {individualSaving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
       {products.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-12 md:py-16">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-50">
@@ -703,7 +1071,9 @@ function PendingRegistrationPanel({ householdId, products }) {
           </p>
           <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
             Cuando marques un producto como &ldquo;Comprado&rdquo; en la lista de compras, aparecerá
-            aquí. Para un ticket completo, pulsa <span className="font-medium">Registrar factura</span>.
+            aquí. Si compraste algo que no estaba en esa lista, usa{' '}
+            <span className="font-medium">Registro individual</span> arriba. Para un ticket completo,{' '}
+            <span className="font-medium">Registrar factura</span>.
           </p>
         </div>
       ) : (
@@ -871,6 +1241,17 @@ function PendingRegistrationPanel({ householdId, products }) {
                         datalistId={`pending-row-store-${product.id}`}
                         historyStores={allStores}
                       />
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={form.forThirdParty}
+                          onChange={(e) =>
+                            setForm({ ...form, forThirdParty: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Para tercero (no suma en gastos del mes; sí queda en histórico)
+                      </label>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="button"
@@ -898,6 +1279,29 @@ function PendingRegistrationPanel({ householdId, products }) {
           </div>
         </>
       )}
+
+      <AlertDialog
+        open={alertDialog.open}
+        title={alertDialog.title}
+        message={alertDialog.message}
+        onClose={() => setAlertDialog({ open: false, message: '', title: '' })}
+      />
+      <ConfirmDialog
+        open={mismatchConfirm.open}
+        title="Total distinto"
+        message={
+          mismatchConfirm.sumRounded != null && mismatchConfirm.total != null
+            ? `La suma de las líneas (${formatPrice(mismatchConfirm.sumRounded)}) no coincide con el total de la factura (${formatPrice(mismatchConfirm.total)}). ¿Guardar de todos modos?`
+            : ''
+        }
+        confirmLabel="Guardar de todos modos"
+        cancelLabel="Volver"
+        onCancel={() => setMismatchConfirm({ open: false })}
+        onConfirm={() => {
+          setMismatchConfirm({ open: false })
+          void performBatchSave()
+        }}
+      />
     </div>
   )
 }

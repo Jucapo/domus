@@ -156,6 +156,52 @@ export const useProductStore = create((set, get) => ({
     return { error }
   },
 
+  /** Revierte el mismo criterio que addInventoryFromPurchase (unidades redondeadas; anclaje a producto base). */
+  subtractInventoryFromPurchase: async (productId, purchaseQty) => {
+    const product = get().products.find((p) => p.id === productId)
+    if (!product) return { error: new Error('Producto no encontrado') }
+    const qty = Math.max(1, Math.round(Number(purchaseQty)))
+
+    if (product.linkedProductId && product.linkedUnitsPerPackage > 0) {
+      const linked = get().products.find((p) => p.id === product.linkedProductId)
+      if (linked) {
+        const sub = Math.round(qty * product.linkedUnitsPerPackage)
+        const newLinkedQty = Math.max(0, linked.quantity - sub)
+        const { error } = await supabase
+          .from('products')
+          .update({ quantity: newLinkedQty })
+          .eq('id', linked.id)
+        if (!error) {
+          set((state) => ({
+            products: state.products.map((p) =>
+              p.id === linked.id ? { ...p, quantity: newLinkedQty } : p,
+            ),
+          }))
+        }
+        return { error }
+      }
+    }
+
+    const newQty = Math.max(0, product.quantity - qty)
+    const { error } = await supabase.from('products').update({ quantity: newQty }).eq('id', productId)
+    if (!error) {
+      set((state) => ({
+        products: state.products.map((p) => (p.id === productId ? { ...p, quantity: newQty } : p)),
+      }))
+    }
+    return { error }
+  },
+
+  /** Ajusta stock cuando cambia la cantidad de una compra ya registrada (misma lógica de redondeo que al sumar). */
+  applyPurchaseQuantityDelta: async (productId, oldPurchaseQty, newPurchaseQty) => {
+    const oldQ = Math.max(1, Math.round(Number(oldPurchaseQty)))
+    const newQ = Math.max(1, Math.round(Number(newPurchaseQty)))
+    const d = newQ - oldQ
+    if (d === 0) return { error: null }
+    if (d > 0) return get().addInventoryFromPurchase(productId, d)
+    return get().subtractInventoryFromPurchase(productId, -d)
+  },
+
   increment: async (productId) => {
     const product = get().products.find((p) => p.id === productId)
     if (!product) return

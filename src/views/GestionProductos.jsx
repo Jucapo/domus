@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import ImageUploader from '../components/ImageUploader'
 import CategorySection from '../components/CategorySection'
+import { ConfirmDialog } from '../components/AppDialogs'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { useCategoryStore } from '../store/useCategoryStore'
@@ -107,6 +108,7 @@ export default function GestionProductos() {
     linkedProductId: '',
   })
   const [search, setSearch] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const filtered = products.filter(
     (p) =>
@@ -222,13 +224,28 @@ export default function GestionProductos() {
     setShowCreateForm(false)
   }
 
-  const handleDelete = (product) => {
-    if (!window.confirm(`¿Eliminar "${product.name}" del inventario?`)) return
-    deleteProduct(product.id)
+  const confirmDeleteProduct = () => {
+    if (!deleteTarget) return
+    deleteProduct(deleteTarget.id)
+    setDeleteTarget(null)
   }
 
   return (
     <div>
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title="Eliminar producto"
+        message={
+          deleteTarget
+            ? `¿Eliminar "${deleteTarget.name}" del inventario?`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        danger
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteProduct}
+      />
       <div className="mb-6 flex items-center justify-between md:mb-8">
         <div className="flex items-center gap-3">
           <button
@@ -334,7 +351,7 @@ export default function GestionProductos() {
                     }
                     accentClass={productAccent}
                     onEdit={() => startEdit(product)}
-                    onDelete={() => handleDelete(product)}
+                    onDelete={() => setDeleteTarget(product)}
                     onToggleVisibility={() =>
                       updateProduct(product.id, {
                         visibleInInventory: product.visibleInInventory === false,

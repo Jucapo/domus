@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Receipt,
 } from 'lucide-react'
+import { buildGastosProductMetaChips, productMetaChipClassName } from '../lib/productDisplay'
 import { useAuthStore } from '../store/useAuthStore'
 import { useProductStore } from '../store/useProductStore'
 import { usePriceStore } from '../store/usePriceStore'
@@ -14,6 +15,7 @@ import { useCategoryStore } from '../store/useCategoryStore'
 import { ALL_UNITS_MAP } from '../data/units'
 import { CATEGORY_ICON_MAP, CATEGORY_COLOR_SURFACE_MAP } from '../data/category_styles'
 import { toTitleCase } from '../lib/textCase'
+import { formatDate } from './preciosShared'
 
 const MONTH_ABBR = [
   'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
@@ -111,6 +113,12 @@ export default function Gastos() {
     [householdRecords, activePeriod],
   )
 
+  /** Gastos del mes / presupuesto: excluye líneas "para tercero". */
+  const budgetPeriodRecords = useMemo(
+    () => periodRecords.filter((r) => !r.forThirdParty),
+    [periodRecords],
+  )
+
   const productMap = useMemo(() => {
     const map = {}
     products.forEach((p) => { map[p.id] = p })
@@ -129,7 +137,7 @@ export default function Gastos() {
     const catMap = {}
     let total = 0
 
-    periodRecords.forEach((r) => {
+    budgetPeriodRecords.forEach((r) => {
       const product = productMap[r.productId]
       if (!product) return
 
@@ -150,6 +158,7 @@ export default function Gastos() {
           total: 0,
           quantity: 0,
           records: 0,
+          purchases: [],
         }
       }
 
@@ -158,6 +167,13 @@ export default function Gastos() {
       catMap[catId].products[r.productId].total += lineTotal
       catMap[catId].products[r.productId].quantity += q
       catMap[catId].products[r.productId].records += 1
+      catMap[catId].products[r.productId].purchases.push({
+        id: r.id,
+        date: r.date,
+        store: r.store,
+        lineTotal,
+        forThirdParty: r.forThirdParty === true,
+      })
       catMap[catId].total += lineTotal
       total += lineTotal
     })
@@ -166,19 +182,37 @@ export default function Gastos() {
       .sort((a, b) => b.total - a.total)
       .map((cat) => ({
         ...cat,
-        products: Object.values(cat.products).sort((a, b) => b.total - a.total),
+        products: Object.values(cat.products)
+          .map((p) => ({
+            ...p,
+            purchases: [...p.purchases].sort((a, b) => b.date.localeCompare(a.date)),
+          }))
+          .sort((a, b) => b.total - a.total),
       }))
 
     return { categoryData: sorted, grandTotal: total }
-  }, [periodRecords, productMap])
+  }, [budgetPeriodRecords, productMap])
 
   const [expandedCategories, setExpandedCategories] = useState(new Set())
+  const [expandedProducts, setExpandedProducts] = useState(new Set())
 
   const toggleCategory = (catId) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev)
       if (next.has(catId)) next.delete(catId)
       else next.add(catId)
+      return next
+    })
+  }
+
+  const productAccordionKey = (catId, productId) => `${catId}:${productId}`
+
+  const toggleProductAccordion = (catId, productId) => {
+    const k = productAccordionKey(catId, productId)
+    setExpandedProducts((prev) => {
+      const next = new Set(prev)
+      if (next.has(k)) next.delete(k)
+      else next.add(k)
       return next
     })
   }
@@ -219,7 +253,7 @@ export default function Gastos() {
         </button>
       </div>
 
-      {periodRecords.length > 0 && (
+      {budgetPeriodRecords.length > 0 && (
         <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50/50 px-4 py-4 md:mb-6 md:px-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400">
             Total del periodo
@@ -228,7 +262,14 @@ export default function Gastos() {
             {formatPrice(grandTotal)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">
-            {periodRecords.length} {periodRecords.length === 1 ? 'registro' : 'registros'} en {categoryData.length} {categoryData.length === 1 ? 'categoría' : 'categorías'}
+            {budgetPeriodRecords.length}{' '}
+            {budgetPeriodRecords.length === 1 ? 'registro' : 'registros'} en{' '}
+            {categoryData.length} {categoryData.length === 1 ? 'categoría' : 'categorías'}
+            {periodRecords.length > budgetPeriodRecords.length ? (
+              <span className="block text-slate-400">
+                ({periodRecords.length - budgetPeriodRecords.length} para tercero, no suman aquí)
+              </span>
+            ) : null}
           </p>
         </div>
       )}
@@ -284,26 +325,84 @@ export default function Gastos() {
                 {isExpanded && (
                   <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-3 md:px-5">
                     <div className="space-y-2">
-                      {cat.products.map((prod) => (
-                        <div
-                          key={prod.id}
-                          className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2.5 shadow-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-slate-800">
-                              {toTitleCase(prod.name)}
-                            </p>
-                            <p className="text-xs text-slate-400">
-                              {prod.quantity} {prod.unit}
-                              <span className="mx-1.5 text-slate-300">·</span>
-                              {prod.records} {prod.records === 1 ? 'compra' : 'compras'}
-                            </p>
+                      {cat.products.map((prod) => {
+                        const pMeta = productMap[prod.id]
+                        const chips = pMeta ? buildGastosProductMetaChips(pMeta) : []
+                        const pKey = productAccordionKey(cat.id, prod.id)
+                        const productOpen = expandedProducts.has(pKey)
+                        return (
+                          <div
+                            key={prod.id}
+                            className="overflow-hidden rounded-lg bg-white shadow-sm"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleProductAccordion(cat.id, prod.id)}
+                              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50/80"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-800">
+                                  {toTitleCase(prod.name)}
+                                </p>
+                                {chips.length > 0 ? (
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {chips.map((chip) => (
+                                      <span
+                                        key={`${prod.id}-${chip.key}`}
+                                        className={productMetaChipClassName(chip.key)}
+                                      >
+                                        {chip.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {prod.quantity} {prod.unit}
+                                  <span className="mx-1.5 text-slate-300">·</span>
+                                  {prod.records} {prod.records === 1 ? 'compra' : 'compras'}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-700 tabular-nums">
+                                  {formatPrice(prod.total)}
+                                </p>
+                                {productOpen ? (
+                                  <ChevronUp size={16} className="text-slate-400" />
+                                ) : (
+                                  <ChevronDown size={16} className="text-slate-400" />
+                                )}
+                              </div>
+                            </button>
+                            {productOpen && (
+                              <div className="border-t border-slate-100 bg-slate-50/80 px-3 py-2">
+                                <ul className="space-y-2 text-xs text-slate-600">
+                                  {prod.purchases.map((row) => (
+                                    <li
+                                      key={row.id}
+                                      className="flex flex-col gap-0.5 rounded-md border border-slate-100 bg-white px-2.5 py-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-3"
+                                    >
+                                      <span className="font-medium text-slate-800">
+                                        {formatDate(row.date)}
+                                        {row.forThirdParty ? (
+                                          <span className="ml-1.5 font-normal text-slate-400">
+                                            (tercero)
+                                          </span>
+                                        ) : null}
+                                      </span>
+                                      <span className="text-slate-500">
+                                        {toTitleCase(row.store) || '—'}
+                                      </span>
+                                      <span className="font-semibold text-slate-900 tabular-nums sm:ml-auto">
+                                        {formatPrice(row.lineTotal)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
                           </div>
-                          <p className="shrink-0 text-sm font-semibold text-slate-700">
-                            {formatPrice(prod.total)}
-                          </p>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
