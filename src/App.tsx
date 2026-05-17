@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/useAuthStore'
 import Layout from './components/Layout'
+import Login from './views/Login'
+import Onboarding from './views/Onboarding'
 import Inventario from './views/Inventario'
 import PorComprar from './views/PorComprar'
 import RegistrarCompra from './views/RegistrarCompra'
@@ -14,10 +16,19 @@ import { Loader2 } from 'lucide-react'
 
 export default function App() {
   const loading = useAuthStore((s) => s.loading)
+  const user = useAuthStore((s) => s.user)
+  const households = useAuthStore((s) => s.households)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const init = useAuthStore((s) => s.init)
 
   useEffect(() => {
-    init()
+    let cleanup: (() => void) | undefined
+    init().then((unsub) => {
+      cleanup = unsub
+    })
+    return () => {
+      cleanup?.()
+    }
   }, [init])
 
   if (loading) {
@@ -30,6 +41,16 @@ export default function App() {
         </div>
       </div>
     )
+  }
+
+  // Auth real activa pero sin sesión: pantalla de login.
+  if (!user) {
+    return <Login />
+  }
+
+  // Auth real activa, sesión OK pero sin hogares: onboarding.
+  if (isAuthenticated && households.length === 0) {
+    return <Onboarding />
   }
 
   return (

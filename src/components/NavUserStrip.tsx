@@ -3,6 +3,8 @@ import { useAuthStore } from '../store/useAuthStore'
 
 export default function NavUserStrip() {
   const user = useAuthStore((s) => s.user)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const signOut = useAuthStore((s) => s.signOut)
   if (!user) return null
 
   return (
@@ -15,13 +17,16 @@ export default function NavUserStrip() {
           <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
           <p className="truncate text-xs text-slate-500">{user.email}</p>
         </div>
-        <button
-          type="button"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          title="Cerrar sesión"
-        >
-          <LogOut size={16} />
-        </button>
+        {isAuthenticated ? (
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            title="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
+        ) : null}
       </div>
     </div>
   )
