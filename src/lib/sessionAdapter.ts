@@ -36,11 +36,7 @@ async function loadAuthenticatedSnapshot(authUser: {
   email?: string | null
   user_metadata?: { full_name?: string; name?: string; avatar_url?: string }
 }): Promise<SessionSnapshot> {
-  // Cast temporal: la tabla `household_members` existe en la migration 010
-  // pero todavía no en los tipos generados (regenerar `supabase.ts` tras aplicar
-  // la migration). Cuando se regeneren los tipos, este cast se puede eliminar.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: members } = await (supabase as any)
+  const { data: members } = await supabase
     .from('household_members')
     .select('household_id, households(id, name)')
     .eq('user_id', authUser.id)

@@ -1,86 +1,117 @@
-# Activar Supabase Auth + Multi-hogar
+# Activar auth real (Google) + atar tu data a tu cuenta
 
 El código ya soporta auth real (Hito 6 del plan de optimización 2026-05).
-Hasta que sigas estos pasos en el dashboard, la app sigue funcionando en
-modo legacy (un solo profile, hogar único hardcodeado).
+Mientras no hagas estos pasos, la app sigue en modo legacy (un solo
+profile, hogar único hardcodeado).
 
-## 1. Aplicar la migration `010_household_members.sql`
+Este doc te lleva del modo legacy a **auth real con jucapo05@gmail.com
+heredando todo el inventario, facturas, precios y gastos actuales**.
 
-En el [SQL Editor de Supabase](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/sql/new),
-pega y ejecuta el contenido de:
+---
 
-```
-supabase/migrations/010_household_members.sql
-```
+## Fase 1 — Google Cloud (OAuth credentials)
 
-Esto crea la tabla `household_members(user_id, household_id, role)`.
+1. [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Crea o selecciona un proyecto.
+3. **Configure consent screen** (User Type: External). Nombre: `Domus`, tu email.
+4. **Create credentials → OAuth client ID**:
+   - Application type: `Web application`
+   - Name: `Domus`
+   - **Authorized JavaScript origins**:
+     - `http://localhost:5173`
+     - `https://<tu-dominio>.vercel.app`
+   - **Authorized redirect URIs**:
+     - `https://fsepmdkrtzmjvrdykrej.supabase.co/auth/v1/callback`
+5. Copia el **Client ID** y **Client Secret**.
 
-## 2. Habilitar Google OAuth
+## Fase 2 — Habilitar Google OAuth en Supabase
 
-Dashboard → Authentication → Providers → Google → toggle "Enable Sign in with Google".
+1. [Dashboard → Authentication → Providers → Google](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/auth/providers).
+2. Toggle **Enabled**, pega Client ID y Client Secret, **Save**.
+3. [Authentication → URL Configuration](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/auth/url-configuration):
+   - **Site URL**: la URL de Vercel.
+   - **Redirect URLs**: agregar `http://localhost:5173/**` y la URL de Vercel.
 
-Necesitas:
-- `Client ID` y `Client Secret` de un proyecto OAuth en [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
-- En "Authorized redirect URIs" del proyecto Google añadir la `Callback URL` que aparece en el Dashboard de Supabase (algo como `https://fsepmdkrtzmjvrdykrej.supabase.co/auth/v1/callback`).
-- También añadir la URL de tu app (Vercel + localhost) en "Authorized JavaScript origins".
+## Fase 3 — Primer login (para crear tu row en `auth.users`)
 
-Dashboard → Authentication → URL Configuration:
-- `Site URL`: la URL de Vercel (`https://domus...vercel.app`).
-- `Redirect URLs`: añadir `http://localhost:5173/` además de la de Vercel.
+1. Abre la app (Vercel o local).
+2. Verás la pantalla de **Login**.
+3. Logueate con **jucapo05@gmail.com**.
+4. Verás la pantalla de **Onboarding** ("Crea tu primer hogar"). **NO crees nada todavía** — déjala abierta sin hacer click.
 
-## 3. Regenerar tipos de Supabase
+   En este punto tu user ya existe en `auth.users` pero todavía no eres miembro de ningún hogar.
 
-Ahora que `household_members` existe, regenera los tipos:
+## Fase 4 — Aplicar setup_auth.sql (todo-en-uno)
 
-```
-npx supabase gen types typescript --project-id fsepmdkrtzmjvrdykrej > src/types/supabase.ts
-```
+[SQL Editor](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/sql/new) → pegar el contenido completo de [`supabase/setup_auth.sql`](../supabase/setup_auth.sql) y ejecutar.
 
-**Importante**: el CLI inyecta una línea `<claude-code-hint .../>` al final
-del archivo que rompe TS. Bórrala manualmente.
+El script hace, en una sola transacción (con rollback si algo falla):
 
-Después puedes limpiar los dos `as any` con TODO en:
-- `src/lib/sessionAdapter.ts` (línea ~33)
-- `src/views/Onboarding.tsx` (línea ~37)
+1. Verifica que `jucapo05@gmail.com` existe en `auth.users`.
+2. Crea la tabla `household_members`.
+3. Te inserta como **owner** del hogar legacy (`00000000-0000-0000-0000-000000000001`).
+4. Reemplaza las policies `allow_all` por RLS reales basadas en `auth.uid()` + membresía.
 
-## 4. Aplicar las RLS reales
-
-En el SQL Editor, pega y ejecuta:
-
-```
-supabase/policies_v2.sql
-```
-
-Esto reemplaza las policies `allow_all` actuales por reglas basadas en
-`auth.uid()` y membresía en `household_members`. **A partir de este punto
-solo usuarios autenticados con membresía válida pueden ver/editar sus
-datos**.
-
-## 5. Migrar tus datos legacy (opcional)
-
-Si quieres conservar el hogar y los productos que tienes hoy con tu nuevo
-usuario de Google OAuth:
-
-1. Logueate primero (la primera vez verás la pantalla de Onboarding —
-   créate un hogar nuevo, llámalo cualquier cosa).
-2. Anota tu `user.id` (puedes ver en la consola: `useAuthStore.getState().user.id`).
-3. En el SQL Editor:
+**Verificación** (descomenta el SELECT del final del script):
 
 ```sql
--- Reemplaza :YOUR_USER_ID con tu auth.uid()
--- Te haces miembro/owner del hogar legacy:
-insert into public.household_members (user_id, household_id, role)
-values (':YOUR_USER_ID', '00000000-0000-0000-0000-000000000001', 'owner')
-on conflict do nothing;
-
--- Opcional: borra el hogar de onboarding nuevo si no lo quieres.
+select hm.role, h.name
+from public.household_members hm
+join public.households h on h.id = hm.household_id
+where hm.user_id = (select id from auth.users where email = 'jucapo05@gmail.com');
 ```
 
-Recarga la app: ahora verás el switcher de hogar en el menú de avatar.
+Debes ver: `owner | <nombre de tu hogar legacy>`.
 
-## 6. Invitaciones a hogar (no incluido todavía)
+## Fase 5 — Recargar la app
 
-El plan original contemplaba flujo de invitar a otros usuarios al hogar
-(tabla `invitations` + UI). No está implementado en el Hito 6. Para añadir
-un miembro manualmente por ahora, inserta directamente en
-`household_members` desde el SQL Editor.
+Recarga la página. La pantalla de Onboarding desaparece y entras directo al inventario con toda tu data (productos, facturas, gastos del histórico).
+
+---
+
+## Si algo sale mal
+
+### "No existe ningún user con email jucapo05@gmail.com"
+No completaste la Fase 3 (login). Hazlo y vuelve a correr el script.
+
+### Después de la Fase 4 ya no veo mis datos
+Significa que el INSERT en `household_members` no se aplicó (o el household_id es otro). Verifica con el SELECT de la Fase 4. Si está vacío, corre solo el bloque INSERT del `setup_auth.sql` manualmente.
+
+### Quedó algo a medias y la app no carga
+Como último recurso, restaura las policies viejas (te devuelve la app a modo "allow_all" mientras debuggeas):
+
+```sql
+drop policy if exists "household_member_read" on public.households;
+drop policy if exists "household_owner_update" on public.households;
+-- ... (repetir para cada policy del setup_auth.sql)
+
+create policy "allow_all" on public.households for all using (true) with check (true);
+create policy "allow_all" on public.profiles for all using (true) with check (true);
+-- ... (repetir para todas las tablas)
+```
+
+---
+
+## Después
+
+### Invitar a otra persona al hogar (manual por ahora)
+
+El flujo de invitaciones UI no está implementado. Para añadir a tu pareja:
+
+1. Que se loguee una vez con su cuenta de Google (esto crea su `auth.users`).
+2. SQL Editor:
+
+```sql
+insert into public.household_members (user_id, household_id, role)
+values (
+  (select id from auth.users where email = 'pareja@gmail.com'),
+  '00000000-0000-0000-0000-000000000001',
+  'member'
+);
+```
+
+Cuando ella recargue verá tu inventario.
+
+### Regenerar tipos de Supabase (opcional)
+
+Los tipos de `household_members` están escritos a mano en `src/types/supabase.ts`. Si en algún momento corres `npx supabase gen types typescript --project-id fsepmdkrtzmjvrdykrej > src/types/supabase.ts`, vas a sobrescribir el archivo con los autogenerados (que ya van a incluir `household_members` porque la tabla ya existe). Recuerda borrar la última línea `<claude-code-hint ... />` que inyecta el CLI.

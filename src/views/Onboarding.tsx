@@ -29,9 +29,7 @@ export default function Onboarding() {
         .single()
       if (hhErr || !household) throw hhErr || new Error('No se pudo crear el hogar.')
 
-      // Cast temporal hasta regenerar tipos tras aplicar migration 010.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: memErr } = await (supabase as any)
+      const { error: memErr } = await supabase
         .from('household_members')
         .insert({ user_id: user.id, household_id: household.id, role: 'owner' })
       if (memErr) throw memErr
