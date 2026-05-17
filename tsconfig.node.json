@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+
+    "strict": true,
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "skipLibCheck": true,
+    "noEmit": true,
+
+    "allowJs": true,
+    "checkJs": false,
+
+    "types": ["node"]
+  },
+  "include": ["vite.config.js", "vite.config.ts", "scripts/**/*.ts", "scripts/**/*.mjs"]
+}
