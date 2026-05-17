@@ -1,4 +1,4 @@
-import { normalizeBarcode, buildBarcodeToProductIdMap } from './invoicePdfImport'
+import { normalizeBarcode, buildBarcodeToProductIdMap } from './invoicePdfParse'
 import type {
   BatchLine,
   ParsedInvoiceItem,
