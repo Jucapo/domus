@@ -17,6 +17,7 @@ import { toTitleCase } from '../lib/textCase'
 import { AlertDialog, ConfirmDialog } from '../components/AppDialogs'
 import { ALL_UNITS_MAP } from '../data/units'
 import type { Invoice, InvoiceLine } from '../types'
+import { recordPurchaseLine, revertPurchaseLine } from '../lib/purchasePersistence'
 
 const STORE_CHIP_FALLBACK = [
   'bg-violet-50 text-violet-800 ring-1 ring-violet-200/80',
@@ -260,30 +261,23 @@ export default function FacturasListSection() {
       }
 
       for (const orig of inv.lines) {
-        if (!draftRecordIds.has(orig.id)) {
-          const { error: subErr } = await subtractInventoryFromPurchase(
-            orig.productId,
-            orig.quantity,
-          )
-          if (subErr) {
-            setAlertDialog({
-              open: true,
-              title: 'Inventario',
-              message: (subErr as Error)?.message
-                ? String((subErr as Error)?.message)
-                : 'Error al revertir stock de una línea eliminada.',
-            })
-            return
-          }
-          const { error: delErr } = await deleteRecord(orig.id)
-          if (delErr) {
-            setAlertDialog({
-              open: true,
-              title: 'Registros',
-              message: (delErr as Error)?.message ? String((delErr as Error)?.message) : 'Error al borrar una línea.',
-            })
-            return
-          }
+        if (draftRecordIds.has(orig.id)) continue
+        const result = await revertPurchaseLine({
+          recordId: orig.id,
+          productId: orig.productId,
+          quantity: orig.quantity,
+        })
+        if (!result.ok) {
+          setAlertDialog({
+            open: true,
+            title: result.failedAt === 'inventory' ? 'Inventario' : 'Registros',
+            message:
+              result.errorMessage ||
+              (result.failedAt === 'inventory'
+                ? 'Error al revertir stock de una línea eliminada.'
+                : 'Error al borrar una línea.'),
+          })
+          return
         }
       }
 
@@ -291,48 +285,31 @@ export default function FacturasListSection() {
 
       for (const d of validated) {
         if (!d.recordId) {
-          const { error: recErr } = await addRecord({
-            productId: d.productId,
+          const product = productsNow().find((x) => x.id === d.productId)
+          if (!product) continue
+          const result = await recordPurchaseLine({
+            product,
             householdId,
-            price: d.unitPrice,
-            quantity: d.qty,
-            store,
-            date: fullEdit.invoiceDate,
             invoiceId: invId,
-            forThirdParty: d.forThirdParty,
+            fields: {
+              quantity: String(d.qty),
+              price: String(d.lineTot),
+              store,
+              date: fullEdit.invoiceDate,
+              forThirdParty: d.forThirdParty,
+            },
           })
-          if (recErr) {
+          if (!result.ok) {
             setAlertDialog({
               open: true,
-              title: 'Precio',
-              message: (recErr as Error)?.message ? String((recErr as Error)?.message) : 'Error al crear línea.',
+              title: result.failedAt === 'inventory' ? 'Inventario' : 'Precio',
+              message:
+                result.errorMessage ||
+                (result.failedAt === 'inventory'
+                  ? 'Error al actualizar inventario.'
+                  : 'Error al crear línea.'),
             })
             return
-          }
-          const p = productsNow().find((x) => x.id === d.productId)
-          if (p?.pendingRegistration) {
-            const { error: e2 } = await completeRegistration(
-              d.productId,
-              Math.max(1, Math.round(d.qty)),
-            )
-            if (e2) {
-              setAlertDialog({
-                open: true,
-                title: 'Inventario',
-                message: (e2 as Error)?.message ? String((e2 as Error)?.message) : 'Error al actualizar inventario.',
-              })
-              return
-            }
-          } else {
-            const { error: e2 } = await addInventoryFromPurchase(d.productId, d.qty)
-            if (e2) {
-              setAlertDialog({
-                open: true,
-                title: 'Inventario',
-                message: (e2 as Error)?.message ? String((e2 as Error)?.message) : 'Error al actualizar inventario.',
-              })
-              return
-            }
           }
           continue
         }

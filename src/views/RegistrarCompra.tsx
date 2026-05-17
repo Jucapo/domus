@@ -36,6 +36,7 @@ import {
   paidToUnitPrice,
 } from './preciosShared'
 import { E_INVOICE_PDF_SOURCES } from '../data/invoiceSources'
+import { recordPurchaseLine } from '../lib/purchasePersistence'
 
 export default function RegistrarCompra() {
   const householdId = useAuthStore((s) => s.user?.currentHouseholdId)
@@ -165,60 +166,30 @@ function PendingRegistrationPanel({ householdId, products }) {
     })
   }
 
-  /** Un producto: precio en histórico + stock (igual que al cerrar una compra desde la lista). */
+  /** Un producto: precio en histórico + stock (delegado en purchasePersistence). */
   const persistSinglePurchase = async (product, fields) => {
-    const unitPrice = paidToUnitPrice(fields.price, fields.quantity)
-    if (!unitPrice || !fields.store.trim()) return { ok: false }
-    const qty = parseFloat(String(fields.quantity).replace(',', '.')) || 1
-
-    const { error: recErr } = await addRecord({
-      productId: product.id,
-      householdId,
-      price: unitPrice,
-      quantity: qty,
-      store: fields.store.trim(),
-      date: fields.date,
-      forThirdParty: fields.forThirdParty,
-    })
-    if (recErr) {
-      setAlertDialog({
-        open: true,
-        title: 'No se pudo guardar',
-        message: (recErr as Error)?.message
-          ? `No se pudo guardar el precio: ${(recErr as Error)?.message}`
-          : 'No se pudo guardar el precio. Revisa la conexión.',
-      })
-      return { ok: false }
-    }
-
-    const qInv = Math.max(1, Math.round(qty))
-    if (product.pendingRegistration) {
-      const { error: regErr } = await completeRegistration(product.id, qInv)
-      if (regErr) {
+    if (!householdId) return { ok: false }
+    const result = await recordPurchaseLine({ product, householdId, fields })
+    if (!result.ok) {
+      if (result.failedAt === 'inventory') {
         setAlertDialog({
           open: true,
           title: 'Inventario',
-          message: (regErr as Error)?.message
-            ? `Precio guardado, pero al actualizar inventario: ${(regErr as Error)?.message}`
+          message: result.errorMessage
+            ? `Precio guardado, pero al actualizar inventario: ${result.errorMessage}`
             : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
         })
-        return { ok: false }
-      }
-    } else {
-      const { error: invErr } = await addInventoryFromPurchase(product.id, qty)
-      if (invErr) {
+      } else {
         setAlertDialog({
           open: true,
-          title: 'Inventario',
-          message: (invErr as Error)?.message
-            ? `Precio guardado, pero al actualizar inventario: ${(invErr as Error)?.message}`
-            : 'El precio se guardó; hubo un error al actualizar el inventario. Revisa el producto en Gestión.',
+          title: 'No se pudo guardar',
+          message: result.errorMessage
+            ? `No se pudo guardar el precio: ${result.errorMessage}`
+            : 'No se pudo guardar el precio. Revisa la conexión.',
         })
-        return { ok: false }
       }
     }
-
-    return { ok: true }
+    return result
   }
 
   const handleSubmit = async (e, product) => {
