@@ -175,14 +175,19 @@ export const useProductStore = create<ProductState>((set, get) => ({
       if (linked) {
         const add = Math.round(qty * product.linkedUnitsPerPackage)
         const newLinkedQty = linked.quantity + add
+        const becomeVisible = linked.visibleInInventory === false
+        const dbPatch: { quantity: number; visible_in_inventory?: boolean } = { quantity: newLinkedQty }
+        if (becomeVisible) dbPatch.visible_in_inventory = true
         const { error } = await supabase
           .from('products')
-          .update({ quantity: newLinkedQty })
+          .update(dbPatch)
           .eq('id', linked.id)
         if (!error) {
           set((state) => ({
             products: state.products.map((p) =>
-              p.id === linked.id ? { ...p, quantity: newLinkedQty } : p,
+              p.id === linked.id
+                ? { ...p, quantity: newLinkedQty, ...(becomeVisible ? { visibleInInventory: true } : {}) }
+                : p,
             ),
           }))
         }
@@ -191,10 +196,17 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
 
     const newQty = product.quantity + qty
-    const { error } = await supabase.from('products').update({ quantity: newQty }).eq('id', productId)
+    const becomeVisible = product.visibleInInventory === false
+    const dbPatch: { quantity: number; visible_in_inventory?: boolean } = { quantity: newQty }
+    if (becomeVisible) dbPatch.visible_in_inventory = true
+    const { error } = await supabase.from('products').update(dbPatch).eq('id', productId)
     if (!error) {
       set((state) => ({
-        products: state.products.map((p) => (p.id === productId ? { ...p, quantity: newQty } : p)),
+        products: state.products.map((p) =>
+          p.id === productId
+            ? { ...p, quantity: newQty, ...(becomeVisible ? { visibleInInventory: true } : {}) }
+            : p,
+        ),
       }))
     }
     return { error }

@@ -122,6 +122,7 @@ export default function GestionProductos() {
   const categoryNames = useMemo(() => {
     const counts = new Map()
     for (const p of filtered) {
+      if (/^\s*\[REVISAR\]/i.test(p.notes || '')) continue
       counts.set(p.category, (counts.get(p.category) || 0) + 1)
     }
     return [...counts.keys()].sort((a, b) => {
@@ -135,6 +136,21 @@ export default function GestionProductos() {
     householdId,
     'gestion-productos',
   )
+
+  const isPendingReview = (notes: string | null | undefined): boolean =>
+    !!notes && /^\s*\[REVISAR\]/i.test(notes)
+
+  const pendingReviewProducts = useMemo(
+    () => filtered.filter((p) => isPendingReview(p.notes)).sort((a, b) => a.name.localeCompare(b.name)),
+    [filtered],
+  )
+
+  const [pendingReviewCollapsed, setPendingReviewCollapsed] = useState(false)
+
+  const markAsReviewed = (product: Product) => {
+    const cleaned = (product.notes || '').replace(/^\s*\[REVISAR\][:\s]*/i, '').trim()
+    updateProduct(product.id, { notes: cleaned })
+  }
 
   const startEdit = (product) => {
     setEditingId(product.id)
@@ -305,9 +321,89 @@ export default function GestionProductos() {
       </div>
 
       <div className="space-y-5 md:space-y-6">
+        {pendingReviewProducts.length > 0 ? (
+          <div className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50/40 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setPendingReviewCollapsed((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 border-b border-amber-200 bg-amber-100/60 px-3 py-2.5 text-left md:px-4"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-200 text-amber-900">
+                  <Search size={16} />
+                </div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-900">
+                  Pendientes de revisión
+                  <span className="ml-2 rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                    {pendingReviewProducts.length}
+                  </span>
+                </h3>
+              </div>
+              <div className="shrink-0 text-amber-700">
+                {pendingReviewCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+              </div>
+            </button>
+            {!pendingReviewCollapsed && (
+              <div className="space-y-2 bg-white/50 p-2 md:p-3">
+                {pendingReviewProducts.map((product) => {
+                  const isEditing = editingId === product.id
+                  if (isEditing) {
+                    return (
+                      <EditForm
+                        key={product.id}
+                        product={product}
+                        form={editForm}
+                        setForm={setEditForm}
+                        categories={categories}
+                        products={products}
+                        onConfirm={() => confirmEdit(product.id)}
+                        onCancel={() => setEditingId(null)}
+                        navigate={navigate}
+                      />
+                    )
+                  }
+                  return (
+                    <div key={product.id} className="space-y-2">
+                      <ProductCard
+                        product={product}
+                        linkedProductName={
+                          product.linkedProductId
+                            ? products.find((x) => x.id === product.linkedProductId)?.name
+                            : null
+                        }
+                        accentClass="border-l-4 border-l-amber-500"
+                        onEdit={() => startEdit(product)}
+                        onDelete={() => setDeleteTarget(product)}
+                        onToggleVisibility={() =>
+                          updateProduct(product.id, {
+                            visibleInInventory: product.visibleInInventory === false,
+                          })
+                        }
+                      />
+                      <div className="flex items-center justify-between gap-2 px-3">
+                        <p className="min-w-0 truncate text-xs text-amber-800">
+                          {(product.notes || '').replace(/^\s*\[REVISAR\][:\s]*/i, '') || 'Sin nota'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => markAsReviewed(product)}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-50"
+                        >
+                          <Check size={12} />
+                          Marcar revisado
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        ) : null}
+
         {categoryNames.map((category) => {
           const categoryProducts = filtered
-            .filter((p) => p.category === category)
+            .filter((p) => p.category === category && !isPendingReview(p.notes))
             .sort((a, b) => a.name.localeCompare(b.name))
           const meta = categoryMetaByName.get(category) || { icon: 'tag', color: 'slate' }
           const productAccent =
