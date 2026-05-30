@@ -19,7 +19,7 @@ heredando todo el inventario, facturas, precios y gastos actuales**.
    - Name: `Domus`
    - **Authorized JavaScript origins**:
      - `http://localhost:5173`
-     - `https://<tu-dominio>.vercel.app`
+     - `https://domus-236.pages.dev` (o tu dominio custom si lo configuras)
    - **Authorized redirect URIs**:
      - `https://fsepmdkrtzmjvrdykrej.supabase.co/auth/v1/callback`
 5. Copia el **Client ID** y **Client Secret**.
@@ -29,12 +29,12 @@ heredando todo el inventario, facturas, precios y gastos actuales**.
 1. [Dashboard → Authentication → Providers → Google](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/auth/providers).
 2. Toggle **Enabled**, pega Client ID y Client Secret, **Save**.
 3. [Authentication → URL Configuration](https://supabase.com/dashboard/project/fsepmdkrtzmjvrdykrej/auth/url-configuration):
-   - **Site URL**: la URL de Vercel.
-   - **Redirect URLs**: agregar `http://localhost:5173/**` y la URL de Vercel.
+   - **Site URL**: la URL de Cloudflare Pages (ej. `https://domus-236.pages.dev`).
+   - **Redirect URLs**: agregar `http://localhost:5173/**` y la URL de Cloudflare Pages.
 
 ## Fase 3 — Primer login (para crear tu row en `auth.users`)
 
-1. Abre la app (Vercel o local).
+1. Abre la app (Cloudflare Pages o local).
 2. Verás la pantalla de **Login**.
 3. Logueate con **jucapo05@gmail.com**.
 4. Verás la pantalla de **Onboarding** ("Crea tu primer hogar"). **NO crees nada todavía** — déjala abierta sin hacer click.
