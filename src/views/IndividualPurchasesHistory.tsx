@@ -119,7 +119,7 @@ export default function IndividualPurchasesHistory() {
         <p className="mt-2 max-w-md mx-auto text-xs">
           Los guardas desde{' '}
           <Link
-            to="/registrar-compra"
+            to="/mercado/registrar-compra"
             className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
           >
             Registrar compra

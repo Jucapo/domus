@@ -7,6 +7,7 @@ import {
   parseElectronicInvoiceXmlForBatch,
   applyNameFallbackToBatchLines,
 } from '../canalXmlImport'
+import { buildBarcodeToProductIdMap, parsedItemsToBatchLines } from '../invoicePdfParse'
 import { newBatchLine } from '../../views/preciosShared'
 import {
   DIAN_ATTACHED_DOCUMENT_XML,
@@ -114,6 +115,51 @@ describe('parseElectronicInvoiceXmlForBatch', () => {
     const result = parseElectronicInvoiceXmlForBatch(DIAN_EMPTY_LINES_XML)
     expect(result.items).toHaveLength(0)
     expect(result.error).toMatch(/InvoiceLine/)
+  })
+})
+
+describe('match de productos a granel (códigos cortos UBL)', () => {
+  // Línea de granel: GTIN de 7 dígitos (Standard) + código interno de 6 (Sellers).
+  const granelXml = `
+    <Invoice>
+      <cac:InvoiceLine><cbc:ID>1</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="KGM">1.40</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="COP">4928.00</cbc:LineExtensionAmount>
+        <cac:Item><cbc:Description>ZANAHORIA A GRANEL</cbc:Description>
+          <cac:SellersItemIdentification><cbc:ID>012047</cbc:ID></cac:SellersItemIdentification>
+          <cac:StandardItemIdentification><cbc:ID schemeID="010" schemeName="GTIN">2404928</cbc:ID></cac:StandardItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="COP">4400.00</cbc:PriceAmount></cac:Price>
+      </cac:InvoiceLine>
+      <cac:InvoiceLine><cbc:ID>2</cbc:ID>
+        <cbc:InvoicedQuantity unitCode="KGM">1.05</cbc:InvoicedQuantity>
+        <cbc:LineExtensionAmount currencyID="COP">10185.00</cbc:LineExtensionAmount>
+        <cac:Item><cbc:Description>PAPA AMARILLA A GRANEL</cbc:Description>
+          <cac:SellersItemIdentification><cbc:ID>006339</cbc:ID></cac:SellersItemIdentification>
+          <cac:StandardItemIdentification><cbc:ID schemeID="010" schemeName="GTIN">2400143</cbc:ID></cac:StandardItemIdentification>
+        </cac:Item>
+        <cac:Price><cbc:PriceAmount currencyID="COP">9700.00</cbc:PriceAmount></cac:Price>
+      </cac:InvoiceLine>
+      <cac:LegalMonetaryTotal><cbc:TaxInclusiveAmount currencyID="COP">15113.00</cbc:TaxInclusiveAmount></cac:LegalMonetaryTotal>
+    </Invoice>`
+
+  it('captura ambos códigos como candidatos (Standard y Sellers)', () => {
+    const items = parseUblInvoiceLineItems(granelXml)
+    expect(items[0].barcodeCandidates).toEqual(['2404928', '012047'])
+    expect(items[1].barcodeCandidates).toEqual(['2400143', '006339'])
+  })
+
+  it('matchea granel por GTIN de 7 dígitos y por código interno de 6', () => {
+    // Inventario inconsistente: zanahoria guardó el GTIN; papa el código interno.
+    const products = [
+      { id: 'zan', name: 'Zanahoria', barcode: '2404928' },
+      { id: 'papa', name: 'Papa amarilla', barcode: '006339' },
+    ] as unknown as Product[]
+    const items = parseUblInvoiceLineItems(granelXml)
+    const map = buildBarcodeToProductIdMap(products)
+    const lines = parsedItemsToBatchLines(items, map, newBatchLine)
+    expect(lines[0].productId).toBe('zan')
+    expect(lines[1].productId).toBe('papa')
   })
 })
 

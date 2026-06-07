@@ -19,7 +19,7 @@ export default function HistorialCompras() {
         <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
           Revisa y edita lo que ya guardaste. Para cargar compras nuevas ve a{' '}
           <Link
-            to="/registrar-compra"
+            to="/mercado/registrar-compra"
             className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
           >
             Registrar compra

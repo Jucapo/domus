@@ -43,6 +43,9 @@ drop policy if exists "allow_all" on public.products;
 drop policy if exists "allow_all" on public.price_records;
 drop policy if exists "allow_all" on public.invoices;
 drop policy if exists "allow_all" on public.household_members;
+drop policy if exists "allow_all" on public.finance_accounts;
+drop policy if exists "allow_all" on public.finance_categories;
+drop policy if exists "allow_all" on public.finance_transactions;
 
 -- 2. households: ver/editar solo los hogares de los que el user es miembro.
 create policy "household_member_read" on public.households
@@ -115,5 +118,29 @@ create policy "price_records_member_read" on public.price_records
   for select using (public.user_belongs_to_household(household_id));
 
 create policy "price_records_member_write" on public.price_records
+  for all using (public.user_belongs_to_household(household_id))
+  with check (public.user_belongs_to_household(household_id));
+
+-- 9. finance_accounts: idem.
+create policy "finance_accounts_member_read" on public.finance_accounts
+  for select using (public.user_belongs_to_household(household_id));
+
+create policy "finance_accounts_member_write" on public.finance_accounts
+  for all using (public.user_belongs_to_household(household_id))
+  with check (public.user_belongs_to_household(household_id));
+
+-- 10. finance_categories: idem.
+create policy "finance_categories_member_read" on public.finance_categories
+  for select using (public.user_belongs_to_household(household_id));
+
+create policy "finance_categories_member_write" on public.finance_categories
+  for all using (public.user_belongs_to_household(household_id))
+  with check (public.user_belongs_to_household(household_id));
+
+-- 11. finance_transactions: idem.
+create policy "finance_transactions_member_read" on public.finance_transactions
+  for select using (public.user_belongs_to_household(household_id));
+
+create policy "finance_transactions_member_write" on public.finance_transactions
   for all using (public.user_belongs_to_household(household_id))
   with check (public.user_belongs_to_household(household_id));

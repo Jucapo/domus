@@ -49,6 +49,200 @@ export type Database = {
           },
         ]
       }
+      finance_accounts: {
+        Row: {
+          archived: boolean
+          color: string
+          created_at: string
+          currency: string
+          household_id: string
+          icon: string
+          id: string
+          initial_balance: number
+          is_favorite: boolean
+          name: string
+          sort_order: number
+          type: string
+        }
+        Insert: {
+          archived?: boolean
+          color?: string
+          created_at?: string
+          currency?: string
+          household_id: string
+          icon?: string
+          id?: string
+          initial_balance?: number
+          is_favorite?: boolean
+          name: string
+          sort_order?: number
+          type?: string
+        }
+        Update: {
+          archived?: boolean
+          color?: string
+          created_at?: string
+          currency?: string
+          household_id?: string
+          icon?: string
+          id?: string
+          initial_balance?: number
+          is_favorite?: boolean
+          name?: string
+          sort_order?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_accounts_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_categories: {
+        Row: {
+          color: string
+          created_at: string
+          household_id: string
+          icon: string
+          id: string
+          kind: string
+          name: string
+          parent_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          household_id: string
+          icon?: string
+          id?: string
+          kind?: string
+          name: string
+          parent_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          household_id?: string
+          icon?: string
+          id?: string
+          kind?: string
+          name?: string
+          parent_id?: string | null
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_categories_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "finance_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_transactions: {
+        Row: {
+          account_id: string
+          amount: number
+          amount_secondary: number | null
+          category_id: string | null
+          created_at: string
+          currency: string
+          currency_secondary: string | null
+          household_id: string
+          id: string
+          invoice_id: string | null
+          note: string
+          tags: string
+          to_account_id: string | null
+          tx_date: string
+          type: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          amount_secondary?: number | null
+          category_id?: string | null
+          created_at?: string
+          currency?: string
+          currency_secondary?: string | null
+          household_id: string
+          id?: string
+          invoice_id?: string | null
+          note?: string
+          tags?: string
+          to_account_id?: string | null
+          tx_date?: string
+          type: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          amount_secondary?: number | null
+          category_id?: string | null
+          created_at?: string
+          currency?: string
+          currency_secondary?: string | null
+          household_id?: string
+          id?: string
+          invoice_id?: string | null
+          note?: string
+          tags?: string
+          to_account_id?: string | null
+          tx_date?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_transactions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "finance_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_to_account_id_fkey"
+            columns: ["to_account_id"]
+            isOneToOne: false
+            referencedRelation: "finance_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       households: {
         Row: {
           created_at: string

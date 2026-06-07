@@ -149,7 +149,7 @@ export default function PorComprar() {
                     <>
                       Todos tus productos ya están en la lista.{' '}
                       <Link
-                        to="/gestion/productos"
+                        to="/mercado/gestion/productos"
                         className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
                       >
                         Crear producto
@@ -195,7 +195,7 @@ export default function PorComprar() {
           <p className="mt-1 max-w-xs px-4 text-center text-xs text-slate-500">
             Usa el buscador de arriba para añadir productos del inventario, o márcalos desde{' '}
             <Link
-              to="/"
+              to="/mercado"
               className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
             >
               Inventario

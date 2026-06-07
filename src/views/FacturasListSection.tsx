@@ -447,7 +447,7 @@ export default function FacturasListSection() {
         Tickets que guardaste con <span className="font-medium text-slate-700">Registrar factura</span>{' '}
         en{' '}
         <Link
-          to="/registrar-compra"
+          to="/mercado/registrar-compra"
           className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
         >
           Registrar compra
@@ -462,7 +462,7 @@ export default function FacturasListSection() {
         <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
           Aún no hay facturas guardadas. En{' '}
           <Link
-            to="/registrar-compra"
+            to="/mercado/registrar-compra"
             className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
           >
             Registrar compra

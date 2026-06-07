@@ -1,15 +1,30 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import SideNavBody from './SideNavBody'
+import type { NavBadge } from './SideNavBody'
 import NavUserStrip from './NavUserStrip'
 import { useCurrentHousehold } from '../store/useAuthStore'
+import type { NavItem } from './nav-items'
 
 export interface MobileNavDrawerProps {
   open: boolean
   onClose: () => void
+  appName: string
+  navItems: NavItem[]
+  basePath: string
+  gestionItems?: NavItem[]
+  badges?: Record<string, NavBadge>
 }
 
-export default function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps) {
+export default function MobileNavDrawer({
+  open,
+  onClose,
+  appName,
+  navItems,
+  basePath,
+  gestionItems,
+  badges,
+}: MobileNavDrawerProps) {
   const currentHousehold = useCurrentHousehold()
 
   useEffect(() => {
@@ -51,7 +66,7 @@ export default function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps)
           <div className="flex min-w-0 items-center gap-3">
             <img src="/logo.png" alt="" className="h-9 w-9 shrink-0 object-contain" />
             <div className="min-w-0">
-              <p className="text-lg font-bold tracking-tight text-slate-900">Domus</p>
+              <p className="truncate text-lg font-bold tracking-tight text-slate-900">{appName}</p>
               <p className="truncate text-xs text-slate-500">{currentHousehold?.name}</p>
             </div>
           </div>
@@ -65,7 +80,13 @@ export default function MobileNavDrawer({ open, onClose }: MobileNavDrawerProps)
           </button>
         </div>
 
-        <SideNavBody onNavigate={onClose} />
+        <SideNavBody
+          navItems={navItems}
+          basePath={basePath}
+          gestionItems={gestionItems}
+          badges={badges}
+          onNavigate={onClose}
+        />
         <NavUserStrip />
       </aside>
     </div>

@@ -2,14 +2,16 @@ import { Menu } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { getPageTitle } from '../data/pageTitles'
 import AvatarMenu from './AvatarMenu'
+import type { AppDefinition } from '../apps/types'
 
 export interface MobileHeaderProps {
   onMenuOpen: () => void
+  app: AppDefinition
 }
 
-export default function MobileHeader({ onMenuOpen }: MobileHeaderProps) {
+export default function MobileHeader({ onMenuOpen, app }: MobileHeaderProps) {
   const location = useLocation()
-  const title = getPageTitle(location.pathname, location.search)
+  const title = getPageTitle(location.pathname, app, location.search)
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2.5 md:hidden">

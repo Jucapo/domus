@@ -1,24 +1,19 @@
-import {
-  Package,
-  ShoppingCart,
-  DollarSign,
-  Receipt,
-  ShoppingBag,
-  History,
-} from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+/**
+ * Item de navegación de una mini-app.
+ *
+ * `to` es una ruta RELATIVA al `basePath` de la app (sin slash inicial). El shell
+ * resuelve la ruta absoluta como `${basePath}/${to}` (o `${basePath}` si `to` es '').
+ * Las definiciones concretas viven en `src/apps/registry.ts`.
+ */
 export interface NavItem {
   to: string
   label: string
   icon: LucideIcon
 }
 
-export const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Inventario', icon: Package },
-  { to: '/por-comprar', label: 'Por Comprar', icon: ShoppingCart },
-  { to: '/registrar-compra', label: 'Registrar compra', icon: ShoppingBag },
-  { to: '/historial-compras', label: 'Historial de compras', icon: History },
-  { to: '/historico-precios', label: 'Histórico precios', icon: Receipt },
-  { to: '/gastos', label: 'Gastos', icon: DollarSign },
-]
+/** Resuelve la ruta absoluta de un NavItem dado el basePath de su app. */
+export function resolveNavPath(basePath: string, to: string): string {
+  return to ? `${basePath}/${to}` : basePath
+}

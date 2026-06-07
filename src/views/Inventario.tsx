@@ -282,7 +282,7 @@ export default function Inventario() {
               value={newProduct.categoryId}
               onChange={(e) => {
                 if (e.target.value === '__create__') {
-                  navigate('/gestion/categorias')
+                  navigate('/mercado/gestion/categorias')
                   return
                 }
                 setNewProduct({ ...newProduct, categoryId: e.target.value })

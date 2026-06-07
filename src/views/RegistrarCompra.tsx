@@ -60,14 +60,14 @@ export default function RegistrarCompra() {
             <p className="mt-0 text-sm text-slate-500 md:mt-0.5">
               Registra facturas completas o producto por producto. Consulta lo guardado en{' '}
               <Link
-                to="/historial-compras"
+                to="/mercado/historial-compras"
                 className="font-medium text-violet-600 underline decoration-violet-300 underline-offset-2 hover:text-violet-800"
               >
                 Historial de compras
               </Link>
               ; los precios también en{' '}
               <Link
-                to="/historico-precios"
+                to="/mercado/historico-precios"
                 className="font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-900"
               >
                 Histórico de precios
@@ -93,6 +93,7 @@ function PendingRegistrationPanel({ householdId, products }) {
   const completeRegistration = useProductStore((s) => s.completeRegistration)
   const addInventoryFromPurchase = useProductStore((s) => s.addInventoryFromPurchase)
   const skipRegistration = useProductStore((s) => s.skipRegistration)
+  const addProduct = useProductStore((s) => s.addProduct)
   const addRecord = usePriceStore((s) => s.addRecord)
   const fetchRecords = usePriceStore((s) => s.fetchRecords)
   const allRecords = usePriceStore((s) => s.records)
@@ -135,6 +136,9 @@ function PendingRegistrationPanel({ householdId, products }) {
   const batchXmlInputRef = useRef<HTMLInputElement>(null)
   const [alertDialog, setAlertDialog] = useState({ open: false, message: '', title: '' })
   const [mismatchConfirm, setMismatchConfirm] = useState<{ open: boolean; sumRounded?: number; total?: number }>({ open: false })
+  const emptyCreateFromLine = { open: false, lineId: '', name: '', categoryId: '', barcode: '' }
+  const [createFromLine, setCreateFromLine] = useState(emptyCreateFromLine)
+  const [creatingProduct, setCreatingProduct] = useState(false)
   const [batchForm, setBatchForm] = useState(() => ({
     store: '',
     date: new Date().toISOString().split('T')[0],
@@ -264,6 +268,42 @@ function PendingRegistrationPanel({ householdId, products }) {
       ...prev,
       lines: prev.lines.map((l) => (l.id === lineId ? { ...l, ...patch } : l)),
     }))
+  }
+
+  const openCreateProductForLine = (line) => {
+    setCreateFromLine({
+      open: true,
+      lineId: line.id,
+      name: line.invoiceDesc ? toTitleCase(line.invoiceDesc) : '',
+      categoryId: '',
+      barcode: line.invoiceBarcode || '',
+    })
+  }
+
+  const handleCreateProductFromLine = async () => {
+    const name = createFromLine.name.trim()
+    if (!name || !createFromLine.categoryId || !householdId || creatingProduct) return
+    setCreatingProduct(true)
+    try {
+      const { data, error } = await addProduct({
+        householdId,
+        name,
+        categoryId: createFromLine.categoryId,
+        barcode: createFromLine.barcode.trim() || undefined,
+      })
+      if (error || !data) {
+        setAlertDialog({
+          open: true,
+          title: 'Crear producto',
+          message: (error as Error)?.message || 'No se pudo crear el producto. Inténtalo de nuevo.',
+        })
+        return
+      }
+      updateBatchLine(createFromLine.lineId, { productId: data.id })
+      setCreateFromLine(emptyCreateFromLine)
+    } finally {
+      setCreatingProduct(false)
+    }
   }
 
   const handleBatchPdfChange = async (e) => {
@@ -533,6 +573,14 @@ function PendingRegistrationPanel({ householdId, products }) {
     return map
   }, [allCategories, householdId])
 
+  const householdCategories = useMemo(
+    () =>
+      allCategories
+        .filter((c) => c.householdId === householdId)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [allCategories, householdId],
+  )
+
   const [pendingSearch, setPendingSearch] = useState('')
   const filteredPending = useMemo(() => {
     const q = pendingSearch.trim().toLowerCase()
@@ -764,10 +812,17 @@ function PendingRegistrationPanel({ householdId, products }) {
                       <td className="px-2 py-2 pl-3 align-middle">
                         <select
                           value={line.productId}
-                          onChange={(e) => updateBatchLine(line.id, { productId: e.target.value })}
+                          onChange={(e) => {
+                            if (e.target.value === '__new__') {
+                              openCreateProductForLine(line)
+                              return
+                            }
+                            updateBatchLine(line.id, { productId: e.target.value })
+                          }}
                           className="w-full max-w-[280px] rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none md:max-w-none"
                         >
                           <option value="">Seleccionar…</option>
+                          <option value="__new__">+ Crear producto nuevo…</option>
                           {householdProducts.map((prod) => (
                             <option key={prod.id} value={prod.id}>
                               {toTitleCase(prod.name)}
@@ -1281,6 +1336,81 @@ function PendingRegistrationPanel({ householdId, products }) {
           void performBatchSave()
         }}
       />
+      {createFromLine.open && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[1px]"
+          role="presentation"
+          onClick={() => {
+            if (!creatingProduct) setCreateFromLine(emptyCreateFromLine)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal
+            aria-labelledby="create-product-title"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="create-product-title" className="text-base font-semibold text-slate-900">
+              Crear producto nuevo
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Se agregará a tu inventario y quedará enlazado a esta línea de la factura. Podrás afinar
+              unidad, contenido y demás luego en Gestión de productos.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Nombre</label>
+                <input
+                  type="text"
+                  value={createFromLine.name}
+                  onChange={(e) => setCreateFromLine((s) => ({ ...s, name: e.target.value }))}
+                  autoFocus
+                  placeholder="Nombre del producto"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Categoría</label>
+                <select
+                  value={createFromLine.categoryId}
+                  onChange={(e) => setCreateFromLine((s) => ({ ...s, categoryId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Selecciona una categoría…</option>
+                  {householdCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {createFromLine.barcode ? (
+                <p className="text-[11px] text-slate-400">
+                  Código de barras: {createFromLine.barcode}
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCreateFromLine(emptyCreateFromLine)}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!createFromLine.name.trim() || !createFromLine.categoryId || creatingProduct}
+                onClick={() => void handleCreateProductFromLine()}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {creatingProduct ? 'Creando…' : 'Crear y enlazar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

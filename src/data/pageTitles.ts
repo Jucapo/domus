@@ -1,37 +1,41 @@
-import { NAV_ITEMS } from '../components/nav-items'
+import type { AppDefinition } from '../apps/types'
 
-function normalizePath(pathname: string | undefined | null): string {
-  if (!pathname) return '/'
+function stripBase(pathname: string, basePath: string): string {
   let p = pathname
-  if (p !== '/' && p.endsWith('/')) p = p.slice(0, -1)
-  return p || '/'
+  if (p.startsWith(basePath)) p = p.slice(basePath.length)
+  if (p.startsWith('/')) p = p.slice(1)
+  if (p.endsWith('/')) p = p.slice(0, -1)
+  return p
 }
 
-const GESTION_TITLES: Record<string, string> = {
-  '/gestion/categorias': 'Categorías',
-  '/gestion/productos': 'Productos',
-}
-
-/** Misma redacción que el h2 de la vista (el ítem del menú a veces es más corto). */
+/** Redacción más larga que el ítem del menú para ciertas vistas. */
 const TITLE_OVERRIDES: Record<string, string> = {
-  '/historico-precios': 'Histórico de precios',
-  '/facturas': 'Historial de compras',
+  'historico-precios': 'Histórico de precios',
 }
 
 /**
- * Título de la pantalla para el header móvil (y puede alinearse con el h2 de escritorio).
+ * Título de la pantalla para el header móvil, derivado de la app activa.
  * @param search `location.search`, p. ej. pestañas en `historial-compras`
  */
-export function getPageTitle(pathname: string, search: string = ''): string {
-  const p = normalizePath(pathname)
-  if (TITLE_OVERRIDES[p]) return TITLE_OVERRIDES[p]
-  if (p === '/historial-compras') {
+export function getPageTitle(
+  pathname: string,
+  app: AppDefinition | undefined,
+  search: string = '',
+): string {
+  if (!app) return 'Domus'
+  const rel = stripBase(pathname, app.basePath)
+
+  if (app.id === 'mercado' && rel === 'historial-compras') {
     const tab = new URLSearchParams(search).get('tab')
     if (tab === 'individuales') return 'Registros individuales'
     return 'Historial de compras · Facturas'
   }
-  const fromNav = NAV_ITEMS.find((item) => item.to === p)
-  if (fromNav) return fromNav.label
-  if (GESTION_TITLES[p]) return GESTION_TITLES[p]
-  return 'Domus'
+
+  if (TITLE_OVERRIDES[rel]) return TITLE_OVERRIDES[rel]
+
+  const items = [...app.navItems, ...(app.gestionItems ?? [])]
+  const match = items.find((item) => item.to === rel)
+  if (match) return match.label
+
+  return app.name
 }

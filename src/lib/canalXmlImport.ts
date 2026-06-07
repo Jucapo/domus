@@ -82,22 +82,32 @@ function roundMoney2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-function extractGtinFromItemBlock(itemBlock: string): string {
-  const sid = itemBlock.match(
-    /<cac:SellersItemIdentification>[\s\S]*?<cbc:ID[^>]*>([^<]+)<\/cbc:ID>/,
-  )
-  if (sid) {
-    const d = normalizeBarcode(sid[1])
-    if (d.length >= 8) return d
+/**
+ * Códigos candidatos de un ítem UBL para matchear inventario.
+ *
+ * Un ítem trae hasta 2 códigos: StandardItemIdentification (GTIN; EAN real de 13
+ * en productos empacados, o PLU de 7 en productos a granel) y
+ * SellersItemIdentification (código interno de la tienda, 6 dígitos). El
+ * inventario puede tener guardado cualquiera de los dos, así que devolvemos
+ * ambos (Standard primero) y el matcher prueba contra todos. Umbral ≥5 dígitos
+ * para incluir los códigos cortos de granel (antes se exigía ≥8 y se perdían).
+ */
+function extractItemCodes(itemBlock: string): string[] {
+  const codes: string[] = []
+  const push = (raw: string | undefined) => {
+    if (!raw) return
+    const d = normalizeBarcode(raw)
+    if (d.length >= 5 && !codes.includes(d)) codes.push(d)
   }
   const std = itemBlock.match(
     /<cac:StandardItemIdentification>[\s\S]*?<cbc:ID[^>]*>([^<]+)<\/cbc:ID>/,
   )
-  if (std) {
-    const d = normalizeBarcode(std[1])
-    if (d.length >= 8) return d
-  }
-  return ''
+  push(std?.[1])
+  const sid = itemBlock.match(
+    /<cac:SellersItemIdentification>[\s\S]*?<cbc:ID[^>]*>([^<]+)<\/cbc:ID>/,
+  )
+  push(sid?.[1])
+  return codes
 }
 
 /**
@@ -122,14 +132,15 @@ export function parseUblInvoiceLineItems(innerInvoiceXml: string): ParsedInvoice
     const lineTotal = ublLinePayableTotalCop(seg)
     if (lineTotal == null || lineTotal <= 0) continue
 
-    const gtin = extractGtinFromItemBlock(itemBlock)
+    const codes = extractItemCodes(itemBlock)
     items.push({
       desc: titleCaseDesc(desc),
       qty,
       um: 'ubl',
       unitPrice: 0,
       total: lineTotal,
-      barcodeRaw: gtin,
+      barcodeRaw: codes[0] || '',
+      barcodeCandidates: codes,
     })
   }
 

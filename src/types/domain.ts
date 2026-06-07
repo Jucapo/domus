@@ -143,6 +143,63 @@ export interface PriceRecord {
 }
 
 // ============================================================================
+// Finanzas (app de gastos estilo 1Money)
+// ============================================================================
+
+export type AccountType = 'cash' | 'bank' | 'credit_card' | 'savings' | 'person' | 'other'
+
+export interface Account {
+  id: UUID
+  householdId: UUID
+  name: string
+  type: AccountType
+  currency: string
+  /** Saldo inicial (al crear la cuenta). El saldo actual se calcula con transacciones. */
+  initialBalance: number
+  icon: string
+  color: string
+  isFavorite: boolean
+  archived: boolean
+  sortOrder: number
+}
+
+export type FinanceCategoryKind = 'expense' | 'income'
+
+export interface FinanceCategory {
+  id: UUID
+  householdId: UUID
+  /** null si es categoría raíz; el id de la padre si es subcategoría. */
+  parentId: UUID | null
+  name: string
+  kind: FinanceCategoryKind
+  icon: string
+  color: string
+  sortOrder: number
+}
+
+export type TransactionType = 'expense' | 'income' | 'transfer'
+
+export interface FinanceTransaction {
+  id: UUID
+  householdId: UUID
+  type: TransactionType
+  date: ISODateString
+  /** Cuenta origen (gasto/transferencia) o destino (ingreso). */
+  accountId: UUID
+  /** Solo transferencias: cuenta destino. */
+  toAccountId: UUID | null
+  /** Solo gasto/ingreso. */
+  categoryId: UUID | null
+  amount: number
+  currency: string
+  amountSecondary: number | null
+  currencySecondary: string | null
+  note: string
+  tags: string
+  invoiceId: UUID | null
+}
+
+// ============================================================================
 // Importación de facturas (parsers PDF/XML)
 // ============================================================================
 
@@ -157,6 +214,12 @@ export interface ParsedInvoiceItem {
   total: number
   /** Código de barras tal como vino (sin normalizar). */
   barcodeRaw: string
+  /**
+   * Códigos candidatos para matchear inventario (ya normalizados a dígitos).
+   * En facturas UBL/DIAN un ítem trae 2 códigos (Sellers + Standard/GTIN); para
+   * productos a granel ambos son cortos. Se prueban todos contra el inventario.
+   */
+  barcodeCandidates?: string[]
 }
 
 export interface ParsedInvoicePayload {

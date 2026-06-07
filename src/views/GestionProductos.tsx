@@ -779,7 +779,7 @@ function CreateForm({ form, setForm, categories, products, onConfirm, onCancel, 
           value={form.categoryId}
           onChange={(e) => {
             if (e.target.value === '__create__') {
-              navigate('/gestion/categorias')
+              navigate('/mercado/gestion/categorias')
               return
             }
             setForm({
@@ -971,7 +971,7 @@ function EditForm({ product, form, setForm, categories, products, onConfirm, onC
           value={form.categoryId}
           onChange={(e) => {
             if (e.target.value === '__create__') {
-              navigate('/gestion/categorias')
+              navigate('/mercado/gestion/categorias')
               return
             }
             setForm({

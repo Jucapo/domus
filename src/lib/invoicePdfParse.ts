@@ -128,14 +128,28 @@ export function parsedItemsToBatchLines(
 ): BatchLine[] {
   return parsedItems.map((it) => {
     const line = createBatchLine()
-    const norm = normalizeBarcode(it.barcodeRaw)
-    const productId = norm && barcodeMap.has(norm) ? (barcodeMap.get(norm) as UUID) : ''
+    // Candidatos a matchear: los explícitos (UBL trae Sellers + Standard) o el
+    // barcodeRaw normalizado. Se prueba contra el inventario en orden.
+    const candidates = (
+      it.barcodeCandidates && it.barcodeCandidates.length
+        ? it.barcodeCandidates
+        : [normalizeBarcode(it.barcodeRaw)]
+    )
+      .map((c) => normalizeBarcode(c))
+      .filter(Boolean)
+    let productId: UUID | '' = ''
+    for (const c of candidates) {
+      if (barcodeMap.has(c)) {
+        productId = barcodeMap.get(c) as UUID
+        break
+      }
+    }
     return {
       ...line,
       productId,
       quantity: String(it.qty),
       price: String(it.total),
-      invoiceBarcode: norm || String(it.barcodeRaw || ''),
+      invoiceBarcode: candidates[0] || String(it.barcodeRaw || ''),
       invoiceDesc: it.desc,
     }
   })
